@@ -3,203 +3,147 @@ import json
 from datetime import datetime, timedelta
 from typing import List, Dict, Optional
 import math
+import urllib.request
+import urllib.parse
 
 mcp = FastMCP("Public AI MCP Server")
 
 @mcp.tool()
-def greet(name: str) -> str:
-    """Greet a person by name.
+def search_swiss_stations(query: str, limit: int = 10) -> List[Dict[str, any]]:
+    """Search for Swiss public transport stations (train, bus, tram).
 
     Args:
-        name: The name of the person to greet
-    """
-    return f"Hello, {name}!"
-
-@mcp.tool()
-def calculate_compound_interest(
-    principal: float,
-    annual_rate: float,
-    years: int,
-    compounds_per_year: int = 12
-) -> Dict[str, float]:
-    """Calculate compound interest with detailed breakdown.
-
-    Args:
-        principal: Initial investment amount
-        annual_rate: Annual interest rate as percentage (e.g., 5.5 for 5.5%)
-        years: Number of years to compound
-        compounds_per_year: Compounding frequency per year (default: 12 for monthly)
+        query: Station name to search for (e.g., "Zürich", "Bern")
+        limit: Maximum number of results to return (default: 10)
 
     Returns:
-        Dictionary with total amount, interest earned, and effective rate
+        List of stations with id, name, and coordinates
     """
-    rate = annual_rate / 100
-    amount = principal * math.pow(1 + rate/compounds_per_year, compounds_per_year * years)
-    interest = amount - principal
-    effective_rate = (amount / principal - 1) * 100
-
-    return {
-        "principal": round(principal, 2),
-        "total_amount": round(amount, 2),
-        "interest_earned": round(interest, 2),
-        "effective_rate_percent": round(effective_rate, 2),
-        "years": years
-    }
-
-@mcp.tool()
-def analyze_text_sentiment(text: str) -> Dict[str, any]:
-    """Analyze text for basic sentiment indicators and metrics.
-
-    Args:
-        text: The text to analyze
-
-    Returns:
-        Dictionary with word count, sentence count, and sentiment indicators
-    """
-    # Simple sentiment word lists
-    positive_words = {'good', 'great', 'excellent', 'amazing', 'wonderful', 'fantastic',
-                     'love', 'best', 'perfect', 'happy', 'joy', 'awesome', 'brilliant'}
-    negative_words = {'bad', 'terrible', 'awful', 'hate', 'worst', 'horrible',
-                     'poor', 'disappointing', 'sad', 'angry', 'frustrating', 'useless'}
-
-    words = text.lower().split()
-    sentences = text.count('.') + text.count('!') + text.count('?')
-    sentences = max(1, sentences)  # At least 1 sentence
-
-    positive_count = sum(1 for word in words if any(pos in word for pos in positive_words))
-    negative_count = sum(1 for word in words if any(neg in word for neg in negative_words))
-
-    sentiment_score = positive_count - negative_count
-    if sentiment_score > 0:
-        sentiment = "positive"
-    elif sentiment_score < 0:
-        sentiment = "negative"
-    else:
-        sentiment = "neutral"
-
-    return {
-        "word_count": len(words),
-        "sentence_count": sentences,
-        "avg_words_per_sentence": round(len(words) / sentences, 1),
-        "positive_indicators": positive_count,
-        "negative_indicators": negative_count,
-        "sentiment": sentiment,
-        "sentiment_score": sentiment_score
-    }
-
-@mcp.tool()
-def generate_meeting_times(
-    start_date: str,
-    num_weeks: int = 4,
-    day_of_week: str = "Monday",
-    time: str = "10:00"
-) -> List[str]:
-    """Generate recurring meeting times for scheduling.
-
-    Args:
-        start_date: Starting date in YYYY-MM-DD format
-        num_weeks: Number of weeks to generate (default: 4)
-        day_of_week: Day of week for meetings (Monday-Sunday)
-        time: Time in HH:MM format (default: 10:00)
-
-    Returns:
-        List of formatted meeting date-times
-    """
-    days = {
-        "monday": 0, "tuesday": 1, "wednesday": 2, "thursday": 3,
-        "friday": 4, "saturday": 5, "sunday": 6
-    }
-
-    target_day = days.get(day_of_week.lower())
-    if target_day is None:
-        return [f"Error: Invalid day of week '{day_of_week}'"]
-
     try:
-        current_date = datetime.strptime(start_date, "%Y-%m-%d")
-    except ValueError:
-        return [f"Error: Invalid date format '{start_date}'. Use YYYY-MM-DD"]
+        url = f"http://transport.opendata.ch/v1/locations?query={urllib.parse.quote(query)}"
+        with urllib.request.urlopen(url, timeout=10) as response:
+            data = json.loads(response.read().decode())
 
-    # Find the first occurrence of target day
-    days_ahead = target_day - current_date.weekday()
-    if days_ahead < 0:
-        days_ahead += 7
-    first_meeting = current_date + timedelta(days=days_ahead)
-
-    meetings = []
-    for week in range(num_weeks):
-        meeting_date = first_meeting + timedelta(weeks=week)
-        meetings.append(f"{meeting_date.strftime('%Y-%m-%d (%A)')} at {time}")
-
-    return meetings
+        stations = data.get('stations', [])[:limit]
+        return [
+            {
+                'id': s['id'],
+                'name': s['name'],
+                'coordinates': {
+                    'lat': s['coordinate']['x'],
+                    'lon': s['coordinate']['y']
+                },
+                'type': s.get('icon', 'unknown')
+            }
+            for s in stations
+        ]
+    except Exception as e:
+        return [{"error": f"Failed to search stations: {str(e)}"}]
 
 @mcp.tool()
-def convert_units(value: float, from_unit: str, to_unit: str) -> Dict[str, any]:
-    """Convert between common units of measurement.
+def get_swiss_departures(station: str, limit: int = 10) -> Dict[str, any]:
+    """Get real-time departures from a Swiss public transport station.
 
     Args:
-        value: The numeric value to convert
-        from_unit: Source unit (kg, lb, km, mi, c, f, m, ft, etc.)
-        to_unit: Target unit
+        station: Station name or ID (e.g., "Zürich HB", "Bern")
+        limit: Number of departures to return (default: 10, max: 40)
 
     Returns:
-        Dictionary with original value, converted value, and units
+        Dictionary with station info and list of upcoming departures with delays
     """
-    # Conversion factors to base units
-    conversions = {
-        # Weight (to kg)
-        'kg': 1.0, 'lb': 0.453592, 'oz': 0.0283495, 'g': 0.001,
-        # Distance (to meters)
-        'm': 1.0, 'km': 1000, 'mi': 1609.34, 'ft': 0.3048, 'in': 0.0254, 'cm': 0.01,
-        # Temperature (special case)
-        'c': 'celsius', 'f': 'fahrenheit', 'k': 'kelvin'
-    }
+    try:
+        url = f"http://transport.opendata.ch/v1/stationboard?station={urllib.parse.quote(station)}&limit={min(limit, 40)}"
+        with urllib.request.urlopen(url, timeout=10) as response:
+            data = json.loads(response.read().decode())
 
-    from_unit = from_unit.lower()
-    to_unit = to_unit.lower()
+        station_info = data.get('station', {})
+        stationboard = data.get('stationboard', [])
 
-    # Handle temperature separately
-    if from_unit in ['c', 'f', 'k'] or to_unit in ['c', 'f', 'k']:
-        # Convert to Celsius first
-        if from_unit == 'f':
-            celsius = (value - 32) * 5/9
-        elif from_unit == 'k':
-            celsius = value - 273.15
-        else:
-            celsius = value
+        departures = []
+        for item in stationboard:
+            stop = item.get('stop', {})
+            prognosis = stop.get('prognosis', {})
 
-        # Convert from Celsius to target
-        if to_unit == 'f':
-            result = celsius * 9/5 + 32
-        elif to_unit == 'k':
-            result = celsius + 273.15
-        else:
-            result = celsius
+            scheduled_time = stop.get('departure', '')
+            actual_time = prognosis.get('departure', scheduled_time)
+            delay = stop.get('delay', 0)
+
+            departures.append({
+                'time': scheduled_time,
+                'actual_time': actual_time,
+                'delay_minutes': delay,
+                'platform': stop.get('platform', 'N/A'),
+                'type': item.get('category', ''),
+                'number': item.get('number', ''),
+                'to': item.get('to', ''),
+                'operator': item.get('operator', '')
+            })
 
         return {
-            "original_value": value,
-            "original_unit": from_unit.upper(),
-            "converted_value": round(result, 2),
-            "converted_unit": to_unit.upper()
+            'station': station_info.get('name', station),
+            'station_id': station_info.get('id', ''),
+            'departures': departures
         }
+    except Exception as e:
+        return {"error": f"Failed to get departures: {str(e)}"}
 
-    # Handle other units
-    if from_unit not in conversions or to_unit not in conversions:
-        return {"error": f"Unsupported unit conversion: {from_unit} to {to_unit}"}
+@mcp.tool()
+def plan_swiss_journey(
+    from_station: str,
+    to_station: str,
+    via_station: Optional[str] = None,
+    limit: int = 4
+) -> List[Dict[str, any]]:
+    """Plan a journey on Swiss public transport with real-time connections.
 
-    # Check if units are compatible (same base unit type)
-    base_from = conversions[from_unit]
-    base_to = conversions[to_unit]
+    Args:
+        from_station: Departure station name (e.g., "Zürich HB")
+        to_station: Arrival station name (e.g., "Bern")
+        via_station: Optional intermediate station (e.g., "Olten")
+        limit: Number of connection options to return (default: 4, max: 6)
 
-    # Convert to base unit, then to target unit
-    base_value = value * base_from
-    result = base_value / base_to
+    Returns:
+        List of journey options with times, platforms, transfers, and products
+    """
+    try:
+        url = f"http://transport.opendata.ch/v1/connections?from={urllib.parse.quote(from_station)}&to={urllib.parse.quote(to_station)}&limit={min(limit, 6)}"
+        if via_station:
+            url += f"&via[]={urllib.parse.quote(via_station)}"
 
-    return {
-        "original_value": value,
-        "original_unit": from_unit,
-        "converted_value": round(result, 4),
-        "converted_unit": to_unit
-    }
+        with urllib.request.urlopen(url, timeout=10) as response:
+            data = json.loads(response.read().decode())
+
+        connections = data.get('connections', [])
+
+        journeys = []
+        for conn in connections:
+            from_info = conn.get('from', {})
+            to_info = conn.get('to', {})
+
+            journey = {
+                'departure': {
+                    'station': from_info.get('station', {}).get('name', ''),
+                    'time': from_info.get('departure', ''),
+                    'platform': from_info.get('platform', 'N/A'),
+                    'delay_minutes': from_info.get('delay', 0)
+                },
+                'arrival': {
+                    'station': to_info.get('station', {}).get('name', ''),
+                    'time': to_info.get('arrival', ''),
+                    'platform': to_info.get('platform', 'N/A'),
+                    'delay_minutes': to_info.get('delay', 0) if to_info.get('delay') else None
+                },
+                'duration': conn.get('duration', ''),
+                'transfers': conn.get('transfers', 0),
+                'products': conn.get('products', [])
+            }
+
+            journeys.append(journey)
+
+        return journeys
+    except Exception as e:
+        return [{"error": f"Failed to plan journey: {str(e)}"}]
+
 
 if __name__ == "__main__":
      mcp.run(transport="http", host="127.0.0.1", port=8000)
