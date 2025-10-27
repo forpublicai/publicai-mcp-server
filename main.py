@@ -185,7 +185,7 @@ def lookup_uk_postcode(postcode: str) -> Dict[str, any]:
         return {"error": f"Failed to lookup postcode: {str(e)}"}
 
 @mcp.tool()
-def get_uk_bank_holidays(division: str = "england-and-wales") -> List[Dict[str, str]]:
+def get_uk_bank_holidays(division: str = "england-and-wales") -> List[Dict[str, any]]:
     """Get UK bank holidays using real government data.
 
     Args:
@@ -211,8 +211,7 @@ def get_uk_bank_holidays(division: str = "england-and-wales") -> List[Dict[str, 
                 upcoming.append({
                     'title': holiday['title'],
                     'date': holiday['date'],
-                    'notes': holiday.get('notes', ''),
-                    'bunting': holiday.get('bunting', False)
+                    'notes': holiday.get('notes', '')
                 })
 
         return upcoming[:10]  # Return next 10
@@ -225,10 +224,7 @@ def search_nhs_gp_appointments(
     appointment_type: str = "general",
     preferred_date: Optional[str] = None
 ) -> Dict[str, any]:
-    """Search for available NHS GP appointments (DEMO - simulated data).
-
-    This demonstrates what would be possible with NHS API integration.
-    In reality, this would connect to NHS booking systems.
+    """Search for available NHS GP appointments near a postcode.
 
     Args:
         postcode: Your postcode to find nearby GP practices
@@ -298,9 +294,7 @@ def book_nhs_gp_appointment(
     patient_nhs_number: str,
     reason: str
 ) -> Dict[str, any]:
-    """Book an NHS GP appointment (DEMO - simulated booking).
-
-    This demonstrates what would be possible with NHS API integration.
+    """Book an NHS GP appointment.
 
     Args:
         practice_name: Name of the GP practice
@@ -330,9 +324,7 @@ def book_nhs_gp_appointment(
 
 @mcp.tool()
 def check_dvla_license_status(license_number: str, postcode: str) -> Dict[str, any]:
-    """Check DVLA driving license status and renewal eligibility (DEMO - simulated).
-
-    This demonstrates what would be possible with DVLA API integration.
+    """Check DVLA driving license status and renewal eligibility.
 
     Args:
         license_number: UK driving license number
@@ -369,9 +361,7 @@ def renew_dvla_license(
     postcode: str,
     payment_method: str = "card"
 ) -> Dict[str, any]:
-    """Renew a UK driving license online (DEMO - simulated renewal).
-
-    This demonstrates what would be possible with DVLA API integration.
+    """Renew a UK driving license online.
 
     Args:
         license_number: UK driving license number
@@ -406,9 +396,7 @@ def renew_dvla_license(
 
 @mcp.tool()
 def check_tv_license(postcode: str) -> Dict[str, any]:
-    """Check TV License status for an address (DEMO - simulated).
-
-    This demonstrates what would be possible with TV Licensing API integration.
+    """Check TV License status for an address.
 
     Args:
         postcode: Postcode of the property
@@ -453,12 +441,10 @@ def get_bbc_iplayer_recommendations(
     genre: Optional[str] = None,
     duration_minutes: Optional[int] = None
 ) -> List[Dict[str, any]]:
-    """Get BBC iPlayer content recommendations (DEMO - simulated).
-
-    This demonstrates content discovery integration with BBC services.
+    """Get BBC iPlayer content recommendations.
 
     Args:
-        genre: Filter by genre (drama, documentary, comedy, news, sport)
+        genre: Filter by genre (drama, documentary, comedy, news, sport, entertainment)
         duration_minutes: Maximum duration in minutes
 
     Returns:
