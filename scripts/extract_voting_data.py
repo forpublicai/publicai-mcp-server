@@ -11,18 +11,29 @@ OUT_DIR = os.path.join(os.path.dirname(__file__), "..", "servers", "swiss-voting
 os.makedirs(OUT_DIR, exist_ok=True)
 
 def parse_parteiparolen(td):
-    dl = td.find("dl", class_="recommendation")
-    if not dl:
-        return td.get_text(" ", strip=True)
+    dls = td.find_all("dl", class_="recommendation")
     parts = []
-    last_type = ""
-    for elem in dl.find_all(["dt", "dd"]):
-        if elem.name == "dt":
-            last_type = elem.get_text(" ", strip=True)
-        elif elem.name == "dd":
-            party = elem.get_text(" ", strip=True)
-            if last_type:
-                parts.append(f"{last_type}: {party}")
+
+    for dl in dls:
+        last_type = None
+        for elem in dl.find_all(["dt", "dd"]):
+            if elem.name == "dt":
+                last_type = elem.get_text(" ", strip=True)
+            elif elem.name == "dd":
+                party = elem.get_text(" ", strip=True)
+                if last_type:
+                    parts.append(f"{last_type}: {party}")
+    return parts
+
+    # Fallback: Plain text case
+    # e.g. "Ja: EVP, GLP\nNein: FDP, SVP, ..."
+    parts = []
+    lines = td.get_text("\n", strip=True).split("\n")
+    for line in lines:
+        if ":" in line:
+            label, parties = line.split(":", 1)
+            for party in [p.strip() for p in parties.split(",") if p.strip()]:
+                parts.append(f"{label.strip()}: {party}")
     return parts
 
 def discover_upcoming_volksinitiative_votes() -> List[str]:
