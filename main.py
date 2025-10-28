@@ -510,5 +510,10 @@ def get_bbc_iplayer_recommendations(
 
     return all_content
 
+# --- Register Swiss voting tools ---
+import sys
+sys.path.append("servers/swiss-voting")  # Ensure path works even if run from project root
+import swiss_voting_tools  # noqa: F401 (registers tools on import)
+
 if __name__ == "__main__":
      mcp.run(transport="http", host="127.0.0.1", port=8000)
