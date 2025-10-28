@@ -24,6 +24,9 @@ jobs:
       - name: Run Swissvotes Extraction Script
         run: python scripts/extract_voting_data.py
 
+      - name: Validate current_votes.json
+        run: python scripts/validate_voting_data.py
+
       - name: Commit and Push if Data Changed
         run: |
           git config --global user.name "github-actions"
