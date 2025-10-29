@@ -1,4 +1,1 @@
-fastmcp
-requests
-beautifulsoup4
-pdfplumber
+fastmcp>=0.1.0

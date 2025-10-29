@@ -1,3 +1,5 @@
+#extract_voting_data.py
+
 import requests
 import time
 import json
@@ -189,7 +191,7 @@ def build_dataset() -> Dict:
             "data_version": "1.0",
             "sources": [BASE, "https://www.admin.ch"]
         },
-        "federal_votes": [],
+        "federal_initiatives": [],
         "usage_metrics": {}
     }
     for vid in vids:
