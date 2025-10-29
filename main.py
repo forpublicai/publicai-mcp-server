@@ -511,6 +511,197 @@ def get_bbc_iplayer_recommendations(
     return all_content
 
 @mcp.tool()
+def fact_check_claim(
+    claim: str,
+    source: Optional[str] = None,
+    date_published: Optional[str] = None
+) -> Dict[str, any]:
+    """Oh Really? - Fact-checking service that provides references for claims made in the news.
+
+    This tool helps verify claims by providing context, related facts, and authoritative sources.
+    Particularly useful for BBC and UK news content verification.
+
+    Args:
+        claim: The claim or statement to fact-check (e.g., "The UK has the oldest broadcasting service in the world")
+        source: Optional source where the claim was made (e.g., "BBC News", "The Guardian")
+        date_published: Optional date when claim was published (YYYY-MM-DD format)
+
+    Returns:
+        Dictionary with fact-check results, verification status, references, and context
+    """
+    import random
+
+    # This is a demonstration tool that shows the structure of fact-checking responses
+    # In production, this would integrate with real fact-checking databases and APIs
+
+    # Generate a fact-check reference ID
+    check_id = f"BBC-FC-{random.randint(100000, 999999)}"
+
+    # Simulate fact-checking logic
+    claim_lower = claim.lower()
+
+    # Example fact-checking responses based on common UK/BBC related claims
+    fact_checks = {
+        'bbc': {
+            'verification': 'verified',
+            'context': 'The BBC (British Broadcasting Corporation) is indeed one of the oldest and largest broadcasting organizations.',
+            'key_facts': [
+                'BBC founded in 1922 as British Broadcasting Company',
+                'Became British Broadcasting Corporation in 1927',
+                'BBC Archives contain material dating back to 1890',
+                'Over 15 million items in BBC Archives'
+            ],
+            'sources': [
+                {'title': 'BBC History', 'url': 'https://www.bbc.co.uk/historyofthebbc', 'type': 'official'},
+                {'title': 'BBC Written Archives Centre', 'url': 'https://www.bbc.co.uk/archive', 'type': 'official'},
+                {'title': 'BBC Royal Charter', 'url': 'https://www.bbc.com/aboutthebbc/governance', 'type': 'official'}
+            ]
+        },
+        'archive': {
+            'verification': 'verified',
+            'context': 'The BBC Archives are one of the largest broadcast archives in the world.',
+            'key_facts': [
+                'Over 15 million items on 60 miles of shelving',
+                'Approximately 1 million hours of playable media',
+                'Television Archive: 1.5M+ tape items, 600K+ film cans',
+                'Sound Archive: 700K vinyl records, 180K 78rpm records',
+                'Photographic Library: 7 million images dating to 1922'
+            ],
+            'sources': [
+                {'title': 'BBC Archives Wikipedia', 'url': 'https://en.wikipedia.org/wiki/BBC_Archives', 'type': 'reference'},
+                {'title': 'BBC Archive Centre', 'url': 'https://www.bbc.co.uk/archive', 'type': 'official'}
+            ]
+        },
+        'television': {
+            'verification': 'partially-verified',
+            'context': 'BBC Television Service began regular broadcasts in 1936.',
+            'key_facts': [
+                'BBC Television Service launched November 2, 1936',
+                'World\'s first regular high-definition television service',
+                'Suspended during WWII (1939-1946)',
+                'Earliest archived BBC TV footage dates to 1936'
+            ],
+            'sources': [
+                {'title': 'BBC History of Television', 'url': 'https://www.bbc.co.uk/historyofthebbc/timelines/television', 'type': 'official'},
+                {'title': 'British Film Institute', 'url': 'https://www.bfi.org.uk/', 'type': 'archive'}
+            ]
+        },
+        'nhs': {
+            'verification': 'verified',
+            'context': 'The National Health Service (NHS) provides healthcare to UK residents.',
+            'key_facts': [
+                'NHS founded on July 5, 1948',
+                'Provides healthcare free at point of use',
+                'Funded through taxation',
+                'One of the largest employers in the world'
+            ],
+            'sources': [
+                {'title': 'NHS Official Website', 'url': 'https://www.nhs.uk/about-us', 'type': 'official'},
+                {'title': 'UK Government - NHS', 'url': 'https://www.gov.uk/government/organisations/nhs', 'type': 'government'}
+            ]
+        },
+        'uk government': {
+            'verification': 'context-needed',
+            'context': 'UK Government claims require specific context and date verification.',
+            'key_facts': [
+                'UK is a constitutional monarchy with parliamentary democracy',
+                'Government data available at gov.uk',
+                'Parliamentary records available at parliament.uk',
+                'Official statistics from Office for National Statistics (ONS)'
+            ],
+            'sources': [
+                {'title': 'UK Government', 'url': 'https://www.gov.uk', 'type': 'government'},
+                {'title': 'UK Parliament', 'url': 'https://www.parliament.uk', 'type': 'government'},
+                {'title': 'Office for National Statistics', 'url': 'https://www.ons.gov.uk', 'type': 'statistics'}
+            ]
+        }
+    }
+
+    # Determine which fact-check template to use
+    selected_check = None
+    for key in fact_checks:
+        if key in claim_lower:
+            selected_check = fact_checks[key]
+            break
+
+    # Default response if no specific match
+    if not selected_check:
+        selected_check = {
+            'verification': 'requires-investigation',
+            'context': 'This claim requires further investigation with authoritative sources.',
+            'key_facts': [
+                'Always verify claims with multiple authoritative sources',
+                'Check publication dates and context',
+                'Look for primary sources when possible',
+                'Consider potential bias in sources'
+            ],
+            'sources': [
+                {'title': 'BBC Reality Check', 'url': 'https://www.bbc.co.uk/news/reality_check', 'type': 'fact-checking'},
+                {'title': 'Full Fact UK', 'url': 'https://fullfact.org', 'type': 'fact-checking'},
+                {'title': 'UK Government Statistics', 'url': 'https://www.gov.uk/search/research-and-statistics', 'type': 'statistics'}
+            ]
+        }
+
+    # Build response
+    response = {
+        'fact_check_id': check_id,
+        'claim': claim,
+        'verification_status': selected_check['verification'],
+        'status_explanation': {
+            'verified': 'Claim is supported by authoritative sources',
+            'partially-verified': 'Claim is partially accurate but needs context',
+            'context-needed': 'Claim requires additional context to verify',
+            'requires-investigation': 'Claim needs further investigation',
+            'disputed': 'Claim is disputed by authoritative sources',
+            'false': 'Claim is contradicted by authoritative sources'
+        }.get(selected_check['verification'], 'Status unknown'),
+        'context': selected_check['context'],
+        'key_facts': selected_check['key_facts'],
+        'authoritative_sources': selected_check['sources'],
+        'verification_date': datetime.now().strftime('%Y-%m-%d'),
+        'source_metadata': {
+            'claim_source': source if source else 'Not specified',
+            'date_published': date_published if date_published else 'Not specified'
+        },
+        'bbc_credit': 'Fact-checking powered by BBC-style verification standards',
+        'methodology': [
+            '1. Identify claim and extract key assertions',
+            '2. Search authoritative sources (government, academic, official records)',
+            '3. Cross-reference multiple sources',
+            '4. Provide context and nuance',
+            '5. Cite primary sources where possible'
+        ],
+        'recommended_actions': {
+            'verified': 'Claim appears accurate based on available sources',
+            'partially-verified': 'Review additional context before sharing',
+            'context-needed': 'Seek more information about specific circumstances',
+            'requires-investigation': 'Verify with multiple authoritative sources before accepting',
+            'disputed': 'Be aware of conflicting information from reliable sources',
+            'false': 'Do not share; claim contradicted by evidence'
+        }.get(selected_check['verification'], 'Investigate further'),
+        'additional_resources': {
+            'uk_fact_checking': [
+                'BBC Reality Check',
+                'Full Fact',
+                'Channel 4 FactCheck'
+            ],
+            'uk_government_data': [
+                'gov.uk/search/research-and-statistics',
+                'Office for National Statistics (ONS)',
+                'UK Parliament Hansard'
+            ],
+            'archives': [
+                'BBC Archives',
+                'British Library',
+                'The National Archives'
+            ]
+        },
+        'note': 'DEMO FACT-CHECK - This demonstrates BBC-quality fact-checking methodology. In production, would integrate with real-time fact-checking databases and AI-powered verification.'
+    }
+
+    return response
+
+@mcp.tool()
 def generate_uk_archive_alt_text(
     image_description: str,
     archive_context: Optional[str] = None,
