@@ -1,0 +1,41 @@
+name: Auto-Update Swiss Initiatives JSON
+
+on:
+  schedule:
+    - cron: '0 5 * * 1'  # Every Monday at 05:00 UTC
+  workflow_dispatch:
+
+jobs:
+  run-update:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+
+      - name: Install scraping dependencies
+        run: pip install -r requirements-scripts.txt
+
+      - name: Run Swiss Initiatives Extraction Script
+        run: python scripts/extract_voting_data.py
+
+      - name: Validate current_initiatives.json
+        run: python scripts/validate_voting_data.py
+
+      - name: Commit and Push if Data Changed
+        run: |
+          git config --global user.name "github-actions"
+          git config --global user.email "github-actions@github.com"
+
+          if [[ `git status --porcelain` ]]; then
+            git add servers/swiss-voting/data/current_initiatives.json
+            git commit -m "🔄 Auto-update current_initiatives.json"
+            git push
+          else
+            echo "No changes to commit"
+          fi

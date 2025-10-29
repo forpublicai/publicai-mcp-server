@@ -1,11 +1,56 @@
 # Python-generated files
-__pycache__/
 *.py[oc]
 build/
 dist/
 wheels/
 *.egg-info
 
-# Virtual environments
-.venv
+# Environment and secrets
+.env
+*.env
+**/secrets.yaml
+**/*secret*
+**/*key*
 venv_owui
+__pycache__/
+*.pyc
+
+# Helm dependency artifacts
+charts/*/Chart.lock
+charts/*/charts/*.tgz
+
+# Temporary files
+*.tmp
+*.log
+.DS_Store
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Backup files
+*.bak
+*.backup
+
+# Ignore model/data cache and HuggingFace models
+data/
+cache/
+models/
+*.bin
+*.pt
+*.ckpt
+*.sqlite3
+*.db
+*.pkl
+*.h5
+
+# Ignore all sentence-transformers and HuggingFace cache
+**/.cache/
+**/snapshots/
+**/sentence-transformers/
+
+# Jupyter Notebook checkpoints
+.ipynb_checkpoints/
+
