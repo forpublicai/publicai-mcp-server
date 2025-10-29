@@ -4,15 +4,19 @@ import requests
 import time
 import json
 import os
+import tempfile
 from bs4 import BeautifulSoup
 from typing import Dict, List
 from datetime import datetime
-    
+import pdfplumber
+
 BASE = "https://swissvotes.ch"
 OUT_DIR = os.path.join(os.path.dirname(__file__), "..", "servers", "swiss-voting", "data")
 os.makedirs(OUT_DIR, exist_ok=True)
 
+
 def parse_parteiparolen(td):
+    """Extract party recommendations like 'Ja: EVP', 'Nein: SVP', etc."""
     dls = td.find_all("dl", class_="recommendation")
     parts = []
 
@@ -25,23 +29,64 @@ def parse_parteiparolen(td):
                 party = elem.get_text(" ", strip=True)
                 if last_type:
                     parts.append(f"{last_type}: {party}")
+
+    if not dls:
+        lines = td.get_text("\n", strip=True).split("\n")
+        for line in lines:
+            if ":" in line:
+                label, parties = line.split(":", 1)
+                for party in [p.strip() for p in parties.split(",") if p.strip()]:
+                    parts.append(f"{label.strip()}: {party}")
     return parts
 
-    # Fallback: Plain text case
-    # e.g. "Ja: EVP, GLP\nNein: FDP, SVP, ..."
-    parts = []
-    lines = td.get_text("\n", strip=True).split("\n")
-    for line in lines:
-        if ":" in line:
-            label, parties = line.split(":", 1)
-            for party in [p.strip() for p in parties.split(",") if p.strip()]:
-                parts.append(f"{label.strip()}: {party}")
-    return parts
 
-out_file = os.path.join(OUT_DIR, "current_initiatives.json")
-with open(out_file, "w", encoding="utf-8") as f:
-    json.dump(data, f, ensure_ascii=False, indent=2)
-print("✅ Wrote current_initiatives.json")
+def extract_pdf_text(pdf_url: str) -> Dict[str, str]:
+    """
+    Download and extract text from PDF brochure in multiple languages.
+    Returns dict with language codes as keys.
+    """
+    texts = {}
+    
+    for lang in ["de", "fr", "it"]:
+        lang_url = pdf_url
+        for base_lang in ("de", "fr", "it"):
+            if f"brochure-{base_lang}.pdf" in pdf_url:
+                lang_url = pdf_url.replace(f"brochure-{base_lang}.pdf", f"brochure-{lang}.pdf")
+                break
+        
+        try:
+            print(f"  Extracting {lang} brochure from {lang_url}")
+            r = requests.get(lang_url, timeout=30)
+            
+            if r.status_code != 200:
+                print(f"  ⚠️  Failed to download {lang} PDF (status {r.status_code})")
+                continue
+            
+            with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp_file:
+                tmp_pdf = tmp_file.name
+                tmp_file.write(r.content)
+            
+            text_pages = []
+            try:
+                with pdfplumber.open(tmp_pdf) as pdf:
+                    for page in pdf.pages:
+                        page_text = page.extract_text()
+                        if page_text:
+                            text_pages.append(page_text)
+                
+                if text_pages:
+                    texts[lang] = "\n\n".join(text_pages)
+                    print(f"  ✅ Extracted {len(text_pages)} pages from {lang} brochure")
+            finally:
+                if os.path.exists(tmp_pdf):
+                    os.remove(tmp_pdf)
+        
+        except Exception as e:
+            print(f"  ⚠️  Failed to extract {lang} brochure: {e}")
+            continue
+    
+    return texts
+
 
 def discover_upcoming_volksinitiative_votes() -> List[str]:
     url = f"{BASE}/votes?page=0"
@@ -82,32 +127,34 @@ def discover_upcoming_volksinitiative_votes() -> List[str]:
                     ids.append(vid)
     return ids
 
+
 def parse_vote_page(vote_id: str) -> Dict:
     url = f"{BASE}/vote/{vote_id}"
     r = requests.get(url, timeout=20)
     if r.status_code != 200:
         return {}
     soup = BeautifulSoup(r.text, "html.parser")
+
     result = {
         "vote_id": vote_id.split(".")[0],
         "official_number": vote_id,
         "details_url": url
     }
+
     tables = soup.find_all("table")
     for table in tables:
         for row in table.find_all("tr"):
-            # Only data rows: th+td or td+td
             cells = row.find_all(["th", "td"], recursive=False)
             if len(cells) != 2:
                 continue
-            # Skip header rows with colspan or section headers
             if cells[0].name == "th" and ("colspan" in cells[0].attrs or not cells[1].text.strip()):
                 continue
+
             label = cells[0].get_text(" ", strip=True)
             td = cells[1]
             value = td.get_text(" ", strip=True)
             link = td.find("a", href=True)
-            # Map official fields
+
             if label == "Offizieller Titel":
                 result["offizieller_titel"] = value
             elif label == "Schlagwort":
@@ -164,24 +211,29 @@ def parse_vote_page(vote_id: str) -> Dict:
                 result["parteiparolen"] = parse_parteiparolen(td)
             elif label == "Wählendenanteil des Ja-Lagers":
                 link_ja = td.find("a", href=True)
-                if link_ja:
-                    result["waehlendenanteil_ja_lager"] = link_ja["href"]
-                else:
-                    result["waehlendenanteil_ja_lager"] = value
+                result["waehlendenanteil_ja_lager"] = link_ja["href"] if link_ja else value
             elif label == "Weitere Parolen":
                 result["weitere_parolen"] = parse_parteiparolen(td)
             elif label == "Abweichende Sektionen":
                 result["abweichende_sektionen"] = parse_parteiparolen(td)
             elif label == "Kampagnenfinanzierung":
                 link_fin = td.find("a", href=True)
-                if link_fin:
-                    result["kampagnenfinanzierung_url"] = link_fin["href"]
-                else:
-                    result["kampagnenfinanzierung_url"] = value
+                result["kampagnenfinanzierung_url"] = link_fin["href"] if link_fin else value
+
     title_de = soup.find("h1")
     if title_de:
         result["title_de"] = title_de.get_text(strip=True)
+
+    # NEW: Extract brochure text in all languages
+    pdf_url = result.get("abstimmungsbuechlein_pdf")
+    if pdf_url:
+        print(f"📄 Extracting brochure text for vote {vote_id}...")
+        brochure_texts = extract_pdf_text(pdf_url)
+        if brochure_texts:
+            result["brochure_texts"] = brochure_texts
+
     return result
+
 
 def build_dataset() -> Dict:
     vids = discover_upcoming_volksinitiative_votes()
@@ -196,11 +248,13 @@ def build_dataset() -> Dict:
     }
     for vid in vids:
         base = parse_vote_page(vid)
-        ds["federal_votes"].append(base)
+        ds["federal_initiatives"].append(base)
     return ds
+
 
 if __name__ == "__main__":
     data = build_dataset()
     out = os.path.join(OUT_DIR, "current_initiatives.json")
     with open(out, "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, indent=2)
+    print("✅ Wrote current_initiatives.json")

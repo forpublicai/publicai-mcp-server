@@ -7,10 +7,8 @@ import sys
 
 mcp = FastMCP("Swiss Voting Assistant")
 
-# Remote JSON file from GitHub (auto-updated weekly)
 INITIATIVES_URL = (
-    "https://raw.githubusercontent.com/pluzgi/publicai-mcp-server/main/"
-    "servers/swiss-voting/data/current_initiatives.json"
+    "https://raw.githubusercontent.com/pluzgi/publicai-mcp-server/main/servers/swiss-voting/data/current_initiatives.json"
 )
 
 
@@ -49,14 +47,14 @@ def get_vote_by_id(vote_id: str) -> dict:
 @mcp.tool()
 def get_brochure_text(vote_id: str, lang: str = "de") -> dict:
     """
-    Fetch and extract the text of the official Swiss voting brochure.
+    Get the extracted text of the official Swiss voting brochure.
     
     Args:
         vote_id: Swissvotes numeric ID, e.g., "681"
         lang: Language code ("de", "fr", "it")
     
     Returns:
-        Dict with brochure PDF URL (extraction not implemented in production)
+        Dict with brochure text (pre-extracted by GitHub Actions)
     """
     try:
         data = load_votes()
@@ -71,21 +69,29 @@ def get_brochure_text(vote_id: str, lang: str = "de") -> dict:
         if not vote:
             return {"error": f"No vote found with ID {vote_id}"}
         
-        # Get brochure PDF URL
-        pdf_url = vote.get("abstimmungsbuechlein_pdf", "")
+        # Get pre-extracted brochure texts
+        brochure_texts = vote.get("brochure_texts", {})
         
-        if not pdf_url:
-            return {"error": "No brochure PDF URL found for this vote"}
+        if not brochure_texts:
+            return {
+                "error": "No brochure text available",
+                "pdf_url": vote.get("abstimmungsbuechlein_pdf", "")
+            }
         
-        # For production: return the PDF URL
-        # Note: PDF text extraction requires pdfplumber which is not in requirements
-        # Users can download and read the PDF themselves
-        return {
-            "vote_id": vote_id,
-            "language": lang,
-            "brochure_pdf_url": pdf_url,
-            "note": "PDF extraction not available in production. Download the PDF from the URL provided."
-        }
+        # Return text for requested language
+        if lang in brochure_texts:
+            return {
+                "vote_id": vote_id,
+                "language": lang,
+                "text": brochure_texts[lang],
+                "pdf_url": vote.get("abstimmungsbuechlein_pdf", "")
+            }
+        else:
+            return {
+                "error": f"Brochure not available in {lang}",
+                "available_languages": list(brochure_texts.keys()),
+                "pdf_url": vote.get("abstimmungsbuechlein_pdf", "")
+            }
     
     except Exception as e:
         return {"error": str(e)}
