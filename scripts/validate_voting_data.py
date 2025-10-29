@@ -20,7 +20,7 @@ PDF_FIELDS = [
     "abstimmungsbuechlein_pdf"
 ]
 
-DATA_PATH = os.path.join(os.path.dirname(__file__), "..", "servers", "swiss-voting", "data", "current_votes.json")
+DATA_PATH = os.path.join(os.path.dirname(__file__), "..", "servers", "swiss-voting", "data", "current_initiatives.json")
 
 def validate_vote_fields(vote):
     errors = []

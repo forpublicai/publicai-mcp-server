@@ -5,7 +5,7 @@ import os
 from bs4 import BeautifulSoup
 from typing import Dict, List
 from datetime import datetime
-
+    
 BASE = "https://swissvotes.ch"
 OUT_DIR = os.path.join(os.path.dirname(__file__), "..", "servers", "swiss-voting", "data")
 os.makedirs(OUT_DIR, exist_ok=True)
@@ -35,6 +35,11 @@ def parse_parteiparolen(td):
             for party in [p.strip() for p in parties.split(",") if p.strip()]:
                 parts.append(f"{label.strip()}: {party}")
     return parts
+
+out_file = os.path.join(OUT_DIR, "current_initiatives.json")
+with open(out_file, "w", encoding="utf-8") as f:
+    json.dump(data, f, ensure_ascii=False, indent=2)
+print("✅ Wrote current_initiatives.json")
 
 def discover_upcoming_volksinitiative_votes() -> List[str]:
     url = f"{BASE}/votes?page=0"
@@ -194,6 +199,6 @@ def build_dataset() -> Dict:
 
 if __name__ == "__main__":
     data = build_dataset()
-    out = os.path.join(OUT_DIR, "current_votes.json")
+    out = os.path.join(OUT_DIR, "current_initiatives.json")
     with open(out, "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, indent=2)

@@ -1,4 +1,4 @@
-name: Auto-Update Swiss Votes JSON
+name: Auto-Update Swiss Initiatives JSON
 
 on:
   schedule:
@@ -21,10 +21,10 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt
 
-      - name: Run Swissvotes Extraction Script
+      - name: Run Swiss Initiatives Extraction Script
         run: python scripts/extract_voting_data.py
 
-      - name: Validate current_votes.json
+      - name: Validate current_initiatives.json
         run: python scripts/validate_voting_data.py
 
       - name: Commit and Push if Data Changed
@@ -33,8 +33,8 @@ jobs:
           git config --global user.email "github-actions@github.com"
 
           if [[ `git status --porcelain` ]]; then
-            git add servers/swiss-voting/data/current_votes.json
-            git commit -m "🔄 Auto-update current_votes.json"
+            git add servers/swiss-voting/data/current_initiatives.json
+            git commit -m "🔄 Auto-update current_initiatives.json"
             git push
           else
             echo "No changes to commit"
