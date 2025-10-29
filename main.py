@@ -511,6 +511,304 @@ def get_bbc_iplayer_recommendations(
     return all_content
 
 @mcp.tool()
+def get_bbc_news(
+    lang: str = "english",
+    max_articles: Optional[int] = 10
+) -> Dict[str, any]:
+    """Get latest news articles from BBC News in various languages.
+
+    Args:
+        lang: Language code (e.g., "english", "bengali", "hindi", "arabic", "spanish")
+        max_articles: Maximum number of articles to return (default: 10)
+
+    Returns:
+        Dictionary with latest BBC news articles including titles, summaries, images, and links
+    """
+    try:
+        url = f"https://bbc-news-api.vercel.app/news?lang={urllib.parse.quote(lang)}"
+
+        with urllib.request.urlopen(url, timeout=15) as response:
+            data = json.loads(response.read().decode())
+
+        if data.get('status') == 200:
+            latest = data.get('latest', [])[:max_articles]
+
+            return {
+                'status': 'success',
+                'language': lang,
+                'articles_count': len(latest),
+                'articles': [
+                    {
+                        'title': article.get('title', ''),
+                        'summary': article.get('summary', ''),
+                        'image_url': article.get('image_link', ''),
+                        'article_url': article.get('news_link', ''),
+                        'source': 'BBC News'
+                    }
+                    for article in latest
+                ],
+                'fetched_at': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+                'api_elapsed_time': data.get('elapsed time', 'N/A')
+            }
+        else:
+            return {
+                'status': 'error',
+                'error': f"API returned status {data.get('status')}",
+                'language': lang
+            }
+    except urllib.error.HTTPError as e:
+        return {
+            'status': 'error',
+            'error': f"HTTP Error {e.code}: {e.reason}",
+            'suggestion': 'Check if the language code is valid. Use get_bbc_languages() to see available languages.'
+        }
+    except Exception as e:
+        return {
+            'status': 'error',
+            'error': f"Failed to fetch BBC news: {str(e)}"
+        }
+
+@mcp.tool()
+def get_bbc_latest_by_section(
+    lang: str = "english"
+) -> Dict[str, any]:
+    """Get the most recent BBC News organized by sections/categories.
+
+    Args:
+        lang: Language code (e.g., "english", "bengali", "hindi", "arabic")
+
+    Returns:
+        Dictionary with news organized by sections (e.g., Top Stories, World, Business, etc.)
+    """
+    try:
+        url = f"https://bbc-news-api.vercel.app/latest?lang={urllib.parse.quote(lang)}"
+
+        with urllib.request.urlopen(url, timeout=15) as response:
+            data = json.loads(response.read().decode())
+
+        if data.get('status') == 200:
+            sections = {}
+            total_articles = 0
+
+            # Extract all sections (everything except status, elapsed time, timestamp)
+            for key, value in data.items():
+                if key not in ['status', 'elapsed time', 'timestamp'] and isinstance(value, list):
+                    sections[key] = [
+                        {
+                            'title': article.get('title', ''),
+                            'summary': article.get('summary', ''),
+                            'image_url': article.get('image_link', ''),
+                            'article_url': article.get('news_link', ''),
+                            'section': key
+                        }
+                        for article in value
+                    ]
+                    total_articles += len(sections[key])
+
+            return {
+                'status': 'success',
+                'language': lang,
+                'total_sections': len(sections),
+                'total_articles': total_articles,
+                'sections': sections,
+                'section_names': list(sections.keys()),
+                'fetched_at': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+                'api_elapsed_time': data.get('elapsed time', 'N/A'),
+                'source': 'BBC News'
+            }
+        else:
+            return {
+                'status': 'error',
+                'error': f"API returned status {data.get('status')}",
+                'language': lang
+            }
+    except urllib.error.HTTPError as e:
+        return {
+            'status': 'error',
+            'error': f"HTTP Error {e.code}: {e.reason}",
+            'suggestion': 'Check if the language code is valid. Use get_bbc_languages() to see available languages.'
+        }
+    except Exception as e:
+        return {
+            'status': 'error',
+            'error': f"Failed to fetch BBC latest news: {str(e)}"
+        }
+
+@mcp.tool()
+def get_bbc_languages() -> Dict[str, any]:
+    """Get a list of all supported languages for BBC News.
+
+    Returns:
+        Dictionary with all available BBC News language services, their codes, URLs, and descriptions
+    """
+    try:
+        url = "https://bbc-news-api.vercel.app/languages"
+
+        with urllib.request.urlopen(url, timeout=10) as response:
+            data = json.loads(response.read().decode())
+
+        if data.get('status') == 200:
+            languages = data.get('languages', [])
+
+            return {
+                'status': 'success',
+                'total_languages': len(languages),
+                'languages': [
+                    {
+                        'code': lang.get('code', ''),
+                        'name': lang.get('name', ''),
+                        'url': lang.get('url', ''),
+                        'description': lang.get('description', '')
+                    }
+                    for lang in languages
+                ],
+                'language_codes': [lang.get('code', '') for lang in languages],
+                'fetched_at': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+                'usage_note': 'Use the language codes with get_bbc_news() or get_bbc_latest_by_section()'
+            }
+        else:
+            return {
+                'status': 'error',
+                'error': f"API returned status {data.get('status')}"
+            }
+    except Exception as e:
+        return {
+            'status': 'error',
+            'error': f"Failed to fetch BBC languages: {str(e)}"
+        }
+
+@mcp.tool()
+def search_bbc_news_by_topic(
+    topic: str,
+    lang: str = "english",
+    max_results: int = 5
+) -> Dict[str, any]:
+    """Search BBC News articles for a specific topic or keyword.
+
+    Args:
+        topic: Topic or keyword to search for (e.g., "climate", "economy", "technology")
+        lang: Language code (default: "english")
+        max_results: Maximum number of matching articles to return (default: 5)
+
+    Returns:
+        Dictionary with BBC news articles matching the topic
+    """
+    try:
+        # Fetch latest news
+        url = f"https://bbc-news-api.vercel.app/news?lang={urllib.parse.quote(lang)}"
+
+        with urllib.request.urlopen(url, timeout=15) as response:
+            data = json.loads(response.read().decode())
+
+        if data.get('status') == 200:
+            latest = data.get('latest', [])
+
+            # Filter articles by topic (case-insensitive search in title and summary)
+            topic_lower = topic.lower()
+            matching_articles = []
+
+            for article in latest:
+                title = article.get('title', '').lower()
+                summary = article.get('summary', '').lower()
+
+                if topic_lower in title or topic_lower in summary:
+                    matching_articles.append({
+                        'title': article.get('title', ''),
+                        'summary': article.get('summary', ''),
+                        'image_url': article.get('image_link', ''),
+                        'article_url': article.get('news_link', ''),
+                        'relevance': 'title match' if topic_lower in title else 'summary match'
+                    })
+
+                if len(matching_articles) >= max_results:
+                    break
+
+            return {
+                'status': 'success',
+                'search_topic': topic,
+                'language': lang,
+                'matches_found': len(matching_articles),
+                'articles': matching_articles,
+                'searched_articles': len(latest),
+                'fetched_at': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+                'note': 'Search performed on latest BBC News articles. For comprehensive search, use BBC website directly.'
+            }
+        else:
+            return {
+                'status': 'error',
+                'error': f"API returned status {data.get('status')}",
+                'language': lang
+            }
+    except Exception as e:
+        return {
+            'status': 'error',
+            'error': f"Failed to search BBC news: {str(e)}"
+        }
+
+@mcp.tool()
+def get_bbc_multilingual_headlines(
+    languages: Optional[List[str]] = None,
+    headlines_per_language: int = 3
+) -> Dict[str, any]:
+    """Get top headlines from BBC News in multiple languages simultaneously.
+
+    Args:
+        languages: List of language codes (e.g., ["english", "hindi", "arabic"]). If None, uses ["english", "spanish", "arabic"]
+        headlines_per_language: Number of headlines per language (default: 3)
+
+    Returns:
+        Dictionary with top headlines organized by language
+    """
+    if languages is None:
+        languages = ["english", "spanish", "arabic"]
+
+    results = {
+        'status': 'success',
+        'languages_requested': languages,
+        'headlines_by_language': {},
+        'total_headlines': 0,
+        'fetched_at': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    }
+
+    for lang in languages:
+        try:
+            url = f"https://bbc-news-api.vercel.app/news?lang={urllib.parse.quote(lang)}"
+
+            with urllib.request.urlopen(url, timeout=15) as response:
+                data = json.loads(response.read().decode())
+
+            if data.get('status') == 200:
+                latest = data.get('latest', [])[:headlines_per_language]
+
+                results['headlines_by_language'][lang] = {
+                    'language_name': lang.capitalize(),
+                    'headlines': [
+                        {
+                            'title': article.get('title', ''),
+                            'summary': article.get('summary', '')[:150] + '...' if len(article.get('summary', '')) > 150 else article.get('summary', ''),
+                            'url': article.get('news_link', '')
+                        }
+                        for article in latest
+                    ],
+                    'count': len(latest)
+                }
+                results['total_headlines'] += len(latest)
+            else:
+                results['headlines_by_language'][lang] = {
+                    'language_name': lang.capitalize(),
+                    'error': f"Failed to fetch (status {data.get('status')})",
+                    'count': 0
+                }
+        except Exception as e:
+            results['headlines_by_language'][lang] = {
+                'language_name': lang.capitalize(),
+                'error': str(e),
+                'count': 0
+            }
+
+    return results
+
+@mcp.tool()
 def fact_check_claim(
     claim: str,
     source: Optional[str] = None,
