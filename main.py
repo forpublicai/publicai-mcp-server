@@ -510,5 +510,104 @@ def get_bbc_iplayer_recommendations(
 
     return all_content
 
+@mcp.tool()
+def generate_uk_archive_alt_text(
+    image_description: str,
+    archive_context: Optional[str] = None,
+    date_circa: Optional[str] = None,
+    format_type: Optional[str] = None
+) -> Dict[str, any]:
+    """Generate descriptive alt text for UK archive images (BBC Archives, British Film Institute, National Archives, etc.).
+
+    This tool helps make historical archive materials more accessible by generating comprehensive,
+    descriptive alt text that follows archival and accessibility best practices.
+
+    Args:
+        image_description: Basic description of what's visible in the image (e.g., "black and white photo of broadcasting equipment")
+        archive_context: Optional context about the source (e.g., "BBC Television Archive", "British Film Institute collection")
+        date_circa: Optional approximate date or era (e.g., "1936", "1960s", "mid-1950s")
+        format_type: Optional original format (e.g., "film still", "publicity photograph", "telerecording", "wax cylinder label")
+
+    Returns:
+        Dictionary with generated alt text in various lengths and accessibility compliance information
+    """
+    # Build comprehensive alt text
+    alt_text_parts = []
+
+    # Add format context if provided
+    if format_type:
+        alt_text_parts.append(format_type.capitalize())
+
+    # Add date context
+    if date_circa:
+        alt_text_parts.append(f"circa {date_circa}")
+
+    # Add main description
+    alt_text_parts.append(image_description)
+
+    # Add archive context
+    if archive_context:
+        alt_text_parts.append(f"From {archive_context}")
+
+    # Generate different length versions
+    full_alt_text = ". ".join(alt_text_parts)
+
+    # Short version (<=125 characters) - WCAG recommended
+    short_version = image_description[:120] + "..." if len(image_description) > 125 else image_description
+
+    # Medium version (descriptive but concise)
+    medium_parts = [image_description]
+    if date_circa:
+        medium_parts.append(f"circa {date_circa}")
+    medium_version = ". ".join(medium_parts)
+
+    # Generate structured metadata
+    metadata = {
+        'description': image_description,
+        'temporal_context': date_circa if date_circa else 'unknown',
+        'format': format_type if format_type else 'photograph',
+        'archive_source': archive_context if archive_context else 'UK archives'
+    }
+
+    # Accessibility tips based on content
+    accessibility_tips = [
+        "Alt text should describe the image content, not interpret it",
+        "For historical images, include temporal context when known",
+        "Avoid starting with 'Image of' or 'Picture of'"
+    ]
+
+    if format_type and 'film' in format_type.lower():
+        accessibility_tips.append("For film stills, mention if it's a scene or behind-the-scenes")
+
+    return {
+        'alt_text_short': short_version,
+        'alt_text_medium': medium_version,
+        'alt_text_full': full_alt_text,
+        'character_count': {
+            'short': len(short_version),
+            'medium': len(medium_version),
+            'full': len(full_alt_text)
+        },
+        'metadata': metadata,
+        'wcag_compliant': len(short_version) <= 125,
+        'accessibility_tips': accessibility_tips,
+        'example_usage': {
+            'html': f'<img src="archive-image.jpg" alt="{medium_version}">',
+            'markdown': f'![{medium_version}](archive-image.jpg)',
+            'aria_label': medium_version
+        },
+        'archive_context': {
+            'bbc_archives': 'Over 15 million items spanning 1890-present',
+            'collections': [
+                'BBC Television Archive (1.5M+ tape items)',
+                'BBC Sound Archive (700K vinyl, 180K 78rpm records)',
+                'BBC Written Archives (1922-present)',
+                'BBC Photographic Library (7M images)',
+                'Heritage Collection (broadcast technology, props)'
+            ],
+            'access_note': 'Material being digitized from analogue formats for preservation'
+        }
+    }
+
 if __name__ == "__main__":
      mcp.run(transport="http", host="127.0.0.1", port=8000)
