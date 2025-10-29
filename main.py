@@ -531,22 +531,31 @@ def get_bbc_news(
             data = json.loads(response.read().decode())
 
         if data.get('status') == 200:
-            latest = data.get('latest', [])[:max_articles]
+            # Collect all articles from all sections
+            all_articles = []
+
+            for key, value in data.items():
+                if key not in ['status', 'elapsed time', 'timestamp'] and isinstance(value, list):
+                    for article in value:
+                        # Skip articles with null titles and summaries
+                        if article.get('title') or article.get('summary'):
+                            all_articles.append({
+                                'title': article.get('title', 'No title'),
+                                'summary': article.get('summary', 'No summary'),
+                                'image_url': article.get('image_link', ''),
+                                'article_url': article.get('news_link', ''),
+                                'section': key,
+                                'source': 'BBC News'
+                            })
+
+            # Limit articles
+            all_articles = all_articles[:max_articles]
 
             return {
                 'status': 'success',
                 'language': lang,
-                'articles_count': len(latest),
-                'articles': [
-                    {
-                        'title': article.get('title', ''),
-                        'summary': article.get('summary', ''),
-                        'image_url': article.get('image_link', ''),
-                        'article_url': article.get('news_link', ''),
-                        'source': 'BBC News'
-                    }
-                    for article in latest
-                ],
+                'articles_count': len(all_articles),
+                'articles': all_articles,
                 'fetched_at': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
                 'api_elapsed_time': data.get('elapsed time', 'N/A')
             }
