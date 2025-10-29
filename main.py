@@ -801,7 +801,22 @@ def get_bbc_multilingual_headlines(
                 data = json.loads(response.read().decode())
 
             if data.get('status') == 200:
-                latest = data.get('latest', [])[:headlines_per_language]
+                # Collect all articles from all sections
+                all_articles = []
+
+                for key, value in data.items():
+                    if key not in ['status', 'elapsed time', 'timestamp'] and isinstance(value, list):
+                        for article in value:
+                            if article.get('title') or article.get('summary'):
+                                all_articles.append({
+                                    'title': article.get('title', 'No title'),
+                                    'summary': article.get('summary', 'No summary'),
+                                    'news_link': article.get('news_link', ''),
+                                    'section': key
+                                })
+
+                # Limit to requested number
+                all_articles = all_articles[:headlines_per_language]
 
                 results['headlines_by_language'][lang] = {
                     'language_name': lang.capitalize(),
@@ -809,13 +824,14 @@ def get_bbc_multilingual_headlines(
                         {
                             'title': article.get('title', ''),
                             'summary': article.get('summary', '')[:150] + '...' if len(article.get('summary', '')) > 150 else article.get('summary', ''),
-                            'url': article.get('news_link', '')
+                            'url': article.get('news_link', ''),
+                            'section': article.get('section', '')
                         }
-                        for article in latest
+                        for article in all_articles
                     ],
-                    'count': len(latest)
+                    'count': len(all_articles)
                 }
-                results['total_headlines'] += len(latest)
+                results['total_headlines'] += len(all_articles)
             else:
                 results['headlines_by_language'][lang] = {
                     'language_name': lang.capitalize(),
