@@ -710,13 +710,26 @@ def search_bbc_news_by_topic(
             data = json.loads(response.read().decode())
 
         if data.get('status') == 200:
-            latest = data.get('latest', [])
+            # Collect all articles from all sections
+            all_articles = []
+
+            for key, value in data.items():
+                if key not in ['status', 'elapsed time', 'timestamp'] and isinstance(value, list):
+                    for article in value:
+                        if article.get('title') or article.get('summary'):
+                            all_articles.append({
+                                'title': article.get('title', ''),
+                                'summary': article.get('summary', ''),
+                                'image_link': article.get('image_link', ''),
+                                'news_link': article.get('news_link', ''),
+                                'section': key
+                            })
 
             # Filter articles by topic (case-insensitive search in title and summary)
             topic_lower = topic.lower()
             matching_articles = []
 
-            for article in latest:
+            for article in all_articles:
                 title = article.get('title', '').lower()
                 summary = article.get('summary', '').lower()
 
@@ -726,6 +739,7 @@ def search_bbc_news_by_topic(
                         'summary': article.get('summary', ''),
                         'image_url': article.get('image_link', ''),
                         'article_url': article.get('news_link', ''),
+                        'section': article.get('section', ''),
                         'relevance': 'title match' if topic_lower in title else 'summary match'
                     })
 
@@ -738,7 +752,7 @@ def search_bbc_news_by_topic(
                 'language': lang,
                 'matches_found': len(matching_articles),
                 'articles': matching_articles,
-                'searched_articles': len(latest),
+                'searched_articles': len(all_articles),
                 'fetched_at': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
                 'note': 'Search performed on latest BBC News articles. For comprehensive search, use BBC website directly.'
             }
