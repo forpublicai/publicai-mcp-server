@@ -145,6 +145,42 @@ def plan_swiss_journey(
         return [{"error": f"Failed to plan journey: {str(e)}"}]
 
 
+@mcp.tool()
+def search_osm_nominatim(query: str, limit: int = 10) -> List[Dict[str, any]]:
+    """Search OpenStreetMap for a location using Nominatim.
+
+    Args:
+        query: Natural language search query (e.g., "Eiffel Tower", "London Bridge")
+        limit: Maximum number of results to return (default: 10)
+
+    Returns:
+        List of locations with address, coordinates, and other details
+    """
+    try:
+        url = f"https://nominatim.openstreetmap.org/search?q={urllib.parse.quote(query)}&format=json&limit={limit}"
+        # Adding a User-Agent is important for Nominatim's usage policy
+        req = urllib.request.Request(url, headers={'User-Agent': 'PublicAI-MCP-Server/1.0'})
+        with urllib.request.urlopen(req, timeout=10) as response:
+            data = json.loads(response.read().decode())
+
+        results = []
+        for item in data:
+            results.append({
+                'display_name': item.get('display_name'),
+                'coordinates': {
+                    'lat': item.get('lat'),
+                    'lon': item.get('lon')
+                },
+                'address': item.get('address', {}),
+                'class': item.get('class'),
+                'type': item.get('type'),
+                'importance': item.get('importance')
+            })
+        return results
+    except Exception as e:
+        return [{"error": f"Failed to search OpenStreetMap: {str(e)}"}]
+
+
 # @mcp.tool()
 # def lookup_uk_postcode(postcode: str) -> Dict[str, any]:
 #     """Look up detailed information about a UK postcode using real data.
