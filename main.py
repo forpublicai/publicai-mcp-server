@@ -1,7 +1,7 @@
 from fastmcp import FastMCP
 import json
 from datetime import datetime, timedelta
-from typing import List, Dict, Optional
+from typing import List, Dict, Optional, Any
 import math
 import urllib.request
 import urllib.parse
@@ -17,7 +17,7 @@ WIKI_API_URL = f"{WIKI_BASE_URL}/w/api.php"
 # ============================================================================
 
 @mcp.tool()
-def list_tools_by_community(community: str) -> List[Dict[str, any]]:
+def list_tools_by_community(community: str) -> List[Dict[str, Any]]:
     """List all tools available for a specific community.
 
     Args:
@@ -52,7 +52,7 @@ def list_tools_by_community(community: str) -> List[Dict[str, any]]:
         return [{"error": f"Failed to list tools for community: {str(e)}"}]
 
 @mcp.tool()
-def use_tool(tool: str, country: Optional[str] = None, region: Optional[str] = None) -> Dict[str, any]:
+def use_tool(tool: str, country: Optional[str] = None, region: Optional[str] = None) -> Dict[str, Any]:
     """Use a Public AI tool. For tools with location-specific resources, provide country/region.
     For tools without resources, returns the full page content.
 
@@ -194,9 +194,9 @@ def use_tool(tool: str, country: Optional[str] = None, region: Optional[str] = N
 def add_resource(
     tool: str,
     country: str,
-    resource_data: Dict[str, any],
+    resource_data: Dict[str, Any],
     region: Optional[str] = None
-) -> Dict[str, any]:
+) -> Dict[str, Any]:
     """Add a new resource to a Public AI tool's resource page. Safely prepends content to the page.
 
     Args:
@@ -338,7 +338,7 @@ def add_resource(
 # ============================================================================
 
 @mcp.tool()
-def search_swiss_stations(query: str, limit: int = 10) -> List[Dict[str, any]]:
+def search_swiss_stations(query: str, limit: int = 10) -> List[Dict[str, Any]]:
     """Search for Swiss public transport stations (train, bus, tram).
 
     Args:
@@ -370,7 +370,7 @@ def search_swiss_stations(query: str, limit: int = 10) -> List[Dict[str, any]]:
         return [{"error": f"Failed to search stations: {str(e)}"}]
 
 @mcp.tool()
-def get_swiss_departures(station: str, limit: int = 10) -> Dict[str, any]:
+def get_swiss_departures(station: str, limit: int = 10) -> Dict[str, Any]:
     """Get real-time departures from a Swiss public transport station.
 
     Args:
@@ -422,7 +422,7 @@ def plan_swiss_journey(
     to_station: str,
     via_station: Optional[str] = None,
     limit: int = 4
-) -> List[Dict[str, any]]:
+) -> List[Dict[str, Any]]:
     """Plan a journey on Swiss public transport with real-time connections.
 
     Args:
@@ -484,7 +484,7 @@ HDB_CARPARK_DATASET_ID = "d_23f946fa557947f93a8043bbef41dd09"
 def search_singapore_carparks(
     query: str,
     limit: int = 10
-) -> Dict[str, any]:
+) -> Dict[str, Any]:
     """Search for HDB carparks by location, area name, or carpark number.
 
     Args:
@@ -534,7 +534,7 @@ def search_singapore_carparks(
 def get_singapore_carpark_availability(
     carpark_number: Optional[str] = None,
     limit: int = 50
-) -> Dict[str, any]:
+) -> Dict[str, Any]:
     """Get real-time carpark availability across Singapore (updated every minute).
 
     Args:
