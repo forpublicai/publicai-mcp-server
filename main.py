@@ -102,7 +102,7 @@ def use_tool(tool: str, country: Optional[str] = None, region: Optional[str] = N
         }
 
         if has_resources:
-            # Tool has location-specific resources, query ToolResources table
+            # Tool has location-specific resources, query tool-specific resource table
             if not country:
                 return {
                     **result,
@@ -110,31 +110,62 @@ def use_tool(tool: str, country: Optional[str] = None, region: Optional[str] = N
                     'usage': f'use_tool(tool="{tool}", country="Singapore") or use_tool(tool="{tool}", country="Switzerland")'
                 }
 
-            resource_fields = "tool,country,region,data_field1_name,data_field1_value,data_field2_name,data_field2_value,data_field3_name,data_field3_value,data_field4_name,data_field4_value,data_field5_name,data_field5_value,additional_info,last_verified"
+            # Extract tool name and construct resource table name
+            # e.g., "Tool:SuicideHotline" -> "SuicideHotlineResources"
+            tool_name = tool.replace('Tool:', '')
+            resource_table = f"{tool_name}Resources"
 
-            # Build WHERE clause for resources
-            where_clauses = [f"tool='{tool}'", f"country='{country}'"]
-            if region:
-                where_clauses.append(f"region='{region}'")
+            try:
+                # First, get the table schema using cargofields API
+                fields_params = {
+                    'action': 'cargofields',
+                    'format': 'json',
+                    'table': resource_table
+                }
 
-            resource_where = ' AND '.join(where_clauses)
+                fields_url = f"{WIKI_API_URL}?{urllib.parse.urlencode(fields_params)}"
 
-            resource_params = {
-                'action': 'cargoquery',
-                'format': 'json',
-                'tables': 'ToolResources',
-                'fields': resource_fields,
-                'where': resource_where,
-                'limit': '500'
-            }
+                with urllib.request.urlopen(fields_url, timeout=10) as response:
+                    fields_data = json.loads(response.read().decode())
 
-            resource_url = f"{WIKI_API_URL}?{urllib.parse.urlencode(resource_params)}"
+                # Extract field names from the cargofields response
+                cargo_fields = fields_data.get('cargofields', {})
+                if not cargo_fields:
+                    result['resources'] = []
+                    result['warning'] = f"Resource table '{resource_table}' not found or has no fields"
+                    return result
 
-            with urllib.request.urlopen(resource_url, timeout=10) as response:
-                resource_data = json.loads(response.read().decode())
+                all_fields = ','.join(cargo_fields.keys())
 
-            resources = [item.get('title', {}) for item in resource_data.get('cargoquery', [])]
-            result['resources'] = resources
+                # Build WHERE clause for resources
+                where_clauses = [f"tool='{tool}'", f"country='{country}'"]
+                if region:
+                    where_clauses.append(f"region='{region}'")
+
+                resource_where = ' AND '.join(where_clauses)
+
+                # Now query with all available fields
+                resource_params = {
+                    'action': 'cargoquery',
+                    'format': 'json',
+                    'tables': resource_table,
+                    'fields': all_fields,
+                    'where': resource_where,
+                    'limit': '500'
+                }
+
+                resource_url = f"{WIKI_API_URL}?{urllib.parse.urlencode(resource_params)}"
+
+                with urllib.request.urlopen(resource_url, timeout=10) as response:
+                    resource_data = json.loads(response.read().decode())
+
+                resources = [item.get('title', {}) for item in resource_data.get('cargoquery', [])]
+                result['resources'] = resources
+
+            except urllib.error.HTTPError as e:
+                # Resource table doesn't exist or other HTTP error
+                result['resources'] = []
+                result['warning'] = f"Resource table '{resource_table}' not found or query failed"
 
         else:
             # Tool doesn't have resources, fetch the page content
