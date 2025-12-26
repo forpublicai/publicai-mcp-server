@@ -215,10 +215,24 @@ def add_resource(
         try:
             resource_data = json.loads(resource_data_json)
         except json.JSONDecodeError as e:
-            return {
-                "error": f"Invalid JSON in resource_data_json: {str(e)}",
-                "hint": "Ensure resource_data_json is a valid JSON string"
-            }
+            # Try to auto-fix common JSON errors (missing closing brace)
+            try:
+                # Count opening and closing braces
+                open_braces = resource_data_json.count('{')
+                close_braces = resource_data_json.count('}')
+
+                if open_braces > close_braces:
+                    # Add missing closing braces
+                    fixed_json = resource_data_json + ('}' * (open_braces - close_braces))
+                    resource_data = json.loads(fixed_json)
+                else:
+                    raise e  # Re-raise original error
+            except:
+                return {
+                    "error": f"Invalid JSON in resource_data_json: {str(e)}",
+                    "hint": "Ensure resource_data_json is a valid JSON string",
+                    "received": resource_data_json
+                }
         # Ensure proper page name format
         if not tool.startswith('Tool:'):
             tool = f'Tool:{tool}'
