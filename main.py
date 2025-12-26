@@ -194,7 +194,7 @@ def use_tool(tool: str, country: Optional[str] = None, region: Optional[str] = N
 def add_resource(
     tool: str,
     country: str,
-    resource_data: Dict[str, Any],
+    resource_data_json: str,
     region: Optional[str] = None
 ) -> Dict[str, Any]:
     """Add a new resource to a Public AI tool's resource page. Safely prepends content to the page.
@@ -202,13 +202,23 @@ def add_resource(
     Args:
         tool: Tool name or canonical ID (e.g., "SuicideHotline" or "Tool:SuicideHotline")
         country: Country name for the resource (e.g., "Singapore", "Switzerland")
-        resource_data: Dictionary containing the resource fields and values. Example for UpcomingEvents: {"event_name": "Art Fair", "event_type": "Cultural", "start_date": "2026-03-15", "venue": "National Museum", "admission": "Free", "description": "Annual art exhibition", "last_verified": "2025-12-26"}
+        resource_data_json: JSON string containing the resource fields and values.
+            Example for UpcomingEvents: '{"event_name": "Art Fair", "event_type": "Cultural", "start_date": "2026-03-15", "venue": "National Museum", "admission": "Free", "description": "Annual art exhibition", "last_verified": "2025-12-26"}'
+            Example for UpcomingBTO: '{"launch_month": "February 2026", "location": "Bukit Merah", "unit_count": "1040", "flat_types": "2R Flexi, 3R, 4R", "classification": "Prime", "last_verified": "2025-12-26"}'
         region: Optional region within the country
 
     Returns:
         Dictionary with operation status, resource page URL, and the added content
     """
     try:
+        # Parse the JSON string into a dictionary
+        try:
+            resource_data = json.loads(resource_data_json)
+        except json.JSONDecodeError as e:
+            return {
+                "error": f"Invalid JSON in resource_data_json: {str(e)}",
+                "hint": "Ensure resource_data_json is a valid JSON string"
+            }
         # Ensure proper page name format
         if not tool.startswith('Tool:'):
             tool = f'Tool:{tool}'
