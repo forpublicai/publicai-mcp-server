@@ -303,6 +303,59 @@ def plan_swiss_journey(
 # Singapore TOOLS
 # ============================================================================
 
+# HDB Carpark Information Dataset ID
+HDB_CARPARK_DATASET_ID = "d_23f946fa557947f93a8043bbef41dd09"
+
+@mcp.tool()
+def search_singapore_carparks(
+    query: str,
+    limit: int = 10
+) -> Dict[str, any]:
+    """Search for HDB carparks by location, area name, or carpark number.
+
+    Args:
+        query: Search term (e.g., "Bedok", "Ang Mo Kio", "ACB", "Block 123")
+        limit: Maximum number of results to return (default: 10, max: 100)
+
+    Returns:
+        Dictionary with total results found and list of matching carparks with number and address
+    """
+    try:
+        params = {
+            'resource_id': HDB_CARPARK_DATASET_ID,
+            'q': query,
+            'fields': 'car_park_no,address',
+            'limit': min(limit, 100)
+        }
+
+        url = f"https://data.gov.sg/api/action/datastore_search?{urllib.parse.urlencode(params)}"
+
+        with urllib.request.urlopen(url, timeout=10) as response:
+            data = json.loads(response.read().decode())
+
+        if not data.get('success'):
+            return {"error": "Failed to search carparks", "details": data.get('error', {})}
+
+        result = data.get('result', {})
+        records = result.get('records', [])
+        total = result.get('total', 0)
+
+        carparks = []
+        for record in records:
+            carparks.append({
+                'carpark_number': record.get('car_park_no', ''),
+                'address': record.get('address', '')
+            })
+
+        return {
+            'total_found': total,
+            'showing': len(carparks),
+            'carparks': carparks
+        }
+
+    except Exception as e:
+        return {"error": f"Failed to search carparks: {str(e)}"}
+
 @mcp.tool()
 def get_singapore_carpark_availability(
     carpark_number: Optional[str] = None,
