@@ -190,6 +190,149 @@ def use_tool(tool: str, country: Optional[str] = None, region: Optional[str] = N
     except Exception as e:
         return {"error": f"Failed to use tool: {str(e)}"}
 
+@mcp.tool()
+def add_resource(
+    tool: str,
+    country: str,
+    resource_data: Dict[str, any],
+    region: Optional[str] = None
+) -> Dict[str, any]:
+    """Add a new resource to a Public AI tool's resource page. Safely prepends content to the page.
+
+    Args:
+        tool: Tool name or canonical ID (e.g., "SuicideHotline" or "Tool:SuicideHotline")
+        country: Country name for the resource (e.g., "Singapore", "Switzerland")
+        resource_data: Dictionary containing the resource fields and values. Example for UpcomingEvents: {"event_name": "Art Fair", "event_type": "Cultural", "start_date": "2026-03-15", "venue": "National Museum", "admission": "Free", "description": "Annual art exhibition", "last_verified": "2025-12-26"}
+        region: Optional region within the country
+
+    Returns:
+        Dictionary with operation status, resource page URL, and the added content
+    """
+    try:
+        # Ensure proper page name format
+        if not tool.startswith('Tool:'):
+            tool = f'Tool:{tool}'
+
+        # Extract tool name for template and table lookup
+        tool_name = tool.replace('Tool:', '')
+        resource_table = f"{tool_name}Resources"
+        template_name = f"{tool_name}Resource"
+
+        # Get the table schema using cargofields API to validate fields
+        fields_params = {
+            'action': 'cargofields',
+            'format': 'json',
+            'table': resource_table
+        }
+
+        fields_url = f"{WIKI_API_URL}?{urllib.parse.urlencode(fields_params)}"
+
+        with urllib.request.urlopen(fields_url, timeout=10) as response:
+            fields_data = json.loads(response.read().decode())
+
+        cargo_fields = fields_data.get('cargofields', {})
+        if not cargo_fields:
+            return {
+                "error": f"Resource table '{resource_table}' not found. This tool may not support resources.",
+                "hint": "Use list_tools_by_community() to find tools with resources"
+            }
+
+        # Build the template parameters
+        template_params = {
+            'tool': tool,
+            'country': country
+        }
+
+        # Add region if provided
+        if region:
+            template_params['region'] = region
+
+        # Add all provided resource data
+        template_params.update(resource_data)
+
+        # Validate that provided fields exist in the schema
+        invalid_fields = []
+        for field in template_params.keys():
+            if field not in cargo_fields:
+                invalid_fields.append(field)
+
+        if invalid_fields:
+            return {
+                "error": f"Invalid field(s): {', '.join(invalid_fields)}",
+                "valid_fields": list(cargo_fields.keys()),
+                "field_types": {k: v['type'] for k, v in cargo_fields.items()}
+            }
+
+        # Generate the wikitext template
+        wikitext_lines = ["{{" + template_name]
+        for key, value in template_params.items():
+            # Include all fields (even empty ones for clarity)
+            wikitext_lines.append(f"|{key}={value}")
+        wikitext_lines.append("}}\n")
+
+        wikitext = "\n".join(wikitext_lines)
+
+        # Construct resource page name
+        resource_page = f"Resource:{tool_name}/{country}"
+        if region:
+            resource_page = f"{resource_page}/{region}"
+
+        # Get CSRF token for editing
+        token_params = {
+            'action': 'query',
+            'meta': 'tokens',
+            'format': 'json'
+        }
+
+        token_url = f"{WIKI_API_URL}?{urllib.parse.urlencode(token_params)}"
+        with urllib.request.urlopen(token_url, timeout=10) as response:
+            token_data = json.loads(response.read().decode())
+
+        csrf_token = token_data['query']['tokens']['csrftoken']
+
+        # Use MediaWiki edit API with prependtext to safely add content at the top
+        edit_params = {
+            'action': 'edit',
+            'format': 'json',
+            'title': resource_page,
+            'prependtext': wikitext,
+            'summary': f'Added new {tool_name} resource via MCP',
+            'token': csrf_token
+        }
+
+        # Make the edit request
+        post_data = urllib.parse.urlencode(edit_params).encode('utf-8')
+        req = urllib.request.Request(WIKI_API_URL, data=post_data)
+
+        with urllib.request.urlopen(req, timeout=10) as response:
+            edit_result = json.loads(response.read().decode())
+
+        # Check if edit was successful
+        if 'edit' in edit_result and edit_result['edit'].get('result') == 'Success':
+            return {
+                'success': True,
+                'resource_page': resource_page,
+                'resource_page_url': f"{WIKI_BASE_URL}/wiki/{resource_page.replace(':', '/')}",
+                'template_name': template_name,
+                'added_content': wikitext.strip(),
+                'revision_id': edit_result['edit'].get('newrevid'),
+                'message': f'Successfully added resource to {resource_page}'
+            }
+        else:
+            # Edit failed, return error details
+            return {
+                'success': False,
+                'error': 'Failed to add resource to wiki',
+                'details': edit_result,
+                'generated_wikitext': wikitext.strip()
+            }
+
+    except urllib.error.HTTPError as e:
+        error_body = e.read().decode() if e.fp else str(e)
+        return {"error": f"HTTP error while adding resource: {e.code} {e.reason}", "details": error_body}
+    except Exception as e:
+        return {"error": f"Failed to add resource: {str(e)}"}
+
 # ============================================================================
 # SWISS TOOLS 
 # ============================================================================
