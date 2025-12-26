@@ -160,7 +160,7 @@ def use_tool(tool: str, country: Optional[str] = None, region: Optional[str] = N
         return {"error": f"Failed to use tool: {str(e)}"}
 
 # ============================================================================
-# SWISS TRANSIT TOOLS (Your existing tools)
+# SWISS TOOLS 
 # ============================================================================
 
 @mcp.tool()
@@ -300,53 +300,73 @@ def plan_swiss_journey(
         return [{"error": f"Failed to plan journey: {str(e)}"}]
 
 # ============================================================================
-# OPENSTREETMAP NOMINATIM SEARCH
+# Singapore TOOLS
 # ============================================================================
 
 @mcp.tool()
-def search_osm_nominatim(query: str, limit: int = 10) -> List[Dict[str, any]]:
-    """Search OpenStreetMap for a location using Nominatim.
-    
+def get_singapore_carpark_availability(
+    carpark_number: Optional[str] = None,
+    limit: int = 50
+) -> Dict[str, any]:
+    """Get real-time carpark availability across Singapore (updated every minute).
+
     Args:
-        query: Natural language search query (e.g., "Eiffel Tower", "London Bridge")
-        limit: Maximum number of results to return (default: 10)
-        
+        carpark_number: Optional specific carpark number to query (e.g., "HE12", "ACB")
+        limit: Maximum number of carparks to return (default: 50)
+
     Returns:
-        List of locations with address, coordinates, and other details
+        Dictionary with timestamp and list of carparks with availability info
     """
     try:
-        params = {
-            'q': query,
-            'format': 'json',
-            'limit': str(limit),
-            'addressdetails': '1'
-        }
-        
-        url = f"https://nominatim.openstreetmap.org/search?{urllib.parse.urlencode(params)}"
-        
-        req = urllib.request.Request(url)
-        req.add_header('User-Agent', 'PublicAI-MCP-Server/1.0')
-        
-        with urllib.request.urlopen(req, timeout=10) as response:
+        url = "https://api.data.gov.sg/v1/transport/carpark-availability"
+
+        with urllib.request.urlopen(url, timeout=10) as response:
             data = json.loads(response.read().decode())
-        
-        results = []
-        for item in data:
-            results.append({
-                'display_name': item.get('display_name', ''),
-                'lat': item.get('lat', ''),
-                'lon': item.get('lon', ''),
-                'type': item.get('type', ''),
-                'category': item.get('class', ''),
-                'importance': item.get('importance', 0),
-                'address': item.get('address', {}),
-                'osm_id': item.get('osm_id', ''),
-                'osm_type': item.get('osm_type', '')
-            })
-        
-        return results
+
+        items = data.get('items', [])
+        if not items:
+            return {"error": "No carpark data available"}
+
+        latest = items[0]
+        timestamp = latest.get('timestamp', '')
+        carpark_data = latest.get('carpark_data', [])
+
+        # Filter by carpark number if specified
+        if carpark_number:
+            carpark_data = [cp for cp in carpark_data if cp.get('carpark_number') == carpark_number]
+            if not carpark_data:
+                return {
+                    "error": f"Carpark '{carpark_number}' not found",
+                    "timestamp": timestamp
+                }
+
+        # Process carpark data
+        carparks = []
+        for cp in carpark_data[:limit]:
+            carpark_info = {
+                'carpark_number': cp.get('carpark_number', ''),
+                'update_datetime': cp.get('update_datetime', ''),
+                'lots': []
+            }
+
+            for lot_info in cp.get('carpark_info', []):
+                carpark_info['lots'].append({
+                    'lot_type': lot_info.get('lot_type', ''),
+                    'total_lots': lot_info.get('total_lots', ''),
+                    'lots_available': lot_info.get('lots_available', '')
+                })
+
+            carparks.append(carpark_info)
+
+        return {
+            'timestamp': timestamp,
+            'total_results': len(carpark_data),
+            'showing': len(carparks),
+            'carparks': carparks
+        }
     except Exception as e:
-        return [{"error": f"Failed to search OSM: {str(e)}"}]
+        return {"error": f"Failed to get carpark availability: {str(e)}"}
+
 
 if __name__ == "__main__":
     mcp.run(transport="http", host="127.0.0.1", port=8000)
