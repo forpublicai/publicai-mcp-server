@@ -157,7 +157,7 @@ def use_tool(tool: str, country: Optional[str] = None, region: Optional[str] = N
         return result
 
     except Exception as e:
-        return {"error": f"Failed to use tool: {str(e)}"}}
+        return {"error": f"Failed to use tool: {str(e)}"}
 
 # ============================================================================
 # SWISS TRANSIT TOOLS (Your existing tools)
