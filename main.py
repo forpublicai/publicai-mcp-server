@@ -13,205 +13,151 @@ WIKI_BASE_URL = "https://wiki.publicai.co"
 WIKI_API_URL = f"{WIKI_BASE_URL}/w/api.php"
 
 # ============================================================================
-# MEDIAWIKI / CARGO QUERY FUNCTIONS
-# ============================================================================
-
-def get_wiki_page(page_title: str) -> Dict[str, any]:
-    """Fetch the content of a wiki page.
-    
-    Args:
-        page_title: Full page title (e.g., "Tool:SuicideHotline")
-        
-    Returns:
-        Dictionary with page content and metadata
-    """
-    try:
-        params = {
-            'action': 'parse',
-            'format': 'json',
-            'page': page_title,
-            'prop': 'text|categories|links'
-        }
-        
-        url = f"{WIKI_API_URL}?{urllib.parse.urlencode(params)}"
-        
-        with urllib.request.urlopen(url, timeout=10) as response:
-            data = json.loads(response.read().decode())
-            
-        parse_result = data.get('parse', {})
-        
-        return {
-            'title': parse_result.get('title', ''),
-            'page_id': parse_result.get('pageid', ''),
-            'html': parse_result.get('text', {}).get('*', ''),
-            'categories': [c.get('*', '') for c in parse_result.get('categories', [])],
-            'links': [l.get('*', '') for l in parse_result.get('links', [])]
-        }
-    except Exception as e:
-        return {"error": f"Failed to fetch page: {str(e)}"}
-
-# ============================================================================
-# PUBLIC AI TOOLS - Query the Wiki
+# PUBLIC AI TOOLS - Consolidated MediaWiki/Cargo Query Functions
 # ============================================================================
 
 @mcp.tool()
-def list_tools() -> List[Dict[str, any]]:
-    """List all tools available in Public AI.
-
-    Returns:
-        List of all tools with canonical tool ID, description, type, and whether resources exist, ordered by tool name
-    """
-    try:
-        fields = "_pageName=tool,description,tool_type=toolType,has_resources=hasResources"
-        order_by = "_pageName"
-        
-        params = {
-            'action': 'cargoquery',
-            'format': 'json',
-            'tables': 'Tools',
-            'fields': fields,
-            'order_by': order_by,
-            'limit': '500'
-        }
-        
-        url = f"{WIKI_API_URL}?{urllib.parse.urlencode(params)}"
-        
-        with urllib.request.urlopen(url, timeout=10) as response:
-            data = json.loads(response.read().decode())
-        
-        cargo_query = data.get('cargoquery', [])
-        results = [item.get('title', {}) for item in cargo_query]
-        
-        return results
-    except Exception as e:
-        return [{"error": f"Failed to list tools: {str(e)}"}]
-
-@mcp.tool()
-def get_tool(tool: str) -> List[Dict[str, any]]:
-    """Get a specific tool by its canonical ID.
+def list_tools_by_community(community: str) -> List[Dict[str, any]]:
+    """List all tools available for a specific community.
 
     Args:
-        tool: Canonical tool ID (e.g., "Tool:SuicideHotline")
+        community: Community name (e.g., "Switzerland", "Singapore", "Lorong AI")
 
     Returns:
-        List containing the tool information with canonical tool ID, description, type, and whether resources exist
+        List of tools with page name, description, community, and whether they have resources
     """
     try:
-        # Ensure proper page name format
-        if not tool.startswith('Tool:'):
-            tool = f'Tool:{tool}'
-        
-        fields = "_pageName=tool,description,tool_type=toolType,has_resources=hasResources"
-        where = f"_pageName='{tool}'"
-        
+        fields = "_pageName=Page,description,community,has_resources"
+        where = f"community HOLDS \"{community}\""
+
         params = {
             'action': 'cargoquery',
             'format': 'json',
             'tables': 'Tools',
             'fields': fields,
             'where': where,
+            'limit': '500'
+        }
+
+        url = f"{WIKI_API_URL}?{urllib.parse.urlencode(params)}"
+
+        with urllib.request.urlopen(url, timeout=10) as response:
+            data = json.loads(response.read().decode())
+
+        cargo_query = data.get('cargoquery', [])
+        results = [item.get('title', {}) for item in cargo_query]
+
+        return results
+    except Exception as e:
+        return [{"error": f"Failed to list tools for community: {str(e)}"}]
+
+@mcp.tool()
+def use_tool(tool: str, country: Optional[str] = None, region: Optional[str] = None) -> Dict[str, any]:
+    """Use a Public AI tool. For tools with location-specific resources, provide country/region.
+    For tools without resources, returns the full page content.
+
+    Args:
+        tool: Tool name or canonical ID (e.g., "SuicideHotline" or "Tool:SuicideHotline")
+        country: Country name for location-based resources (e.g., "Singapore", "Switzerland")
+        region: Optional region for more specific results (e.g., "ZH" for Zurich)
+
+    Returns:
+        Dictionary with tool information and either resources (for location-based tools) or page content
+    """
+    try:
+        # Ensure proper page name format
+        if not tool.startswith('Tool:'):
+            tool = f'Tool:{tool}'
+
+        # First, get the tool metadata to check if it has resources
+        tool_fields = "_pageName=Page,description,community,has_resources"
+        tool_where = f"_pageName='{tool}'"
+
+        tool_params = {
+            'action': 'cargoquery',
+            'format': 'json',
+            'tables': 'Tools',
+            'fields': tool_fields,
+            'where': tool_where,
             'limit': '1'
         }
-        
-        url = f"{WIKI_API_URL}?{urllib.parse.urlencode(params)}"
-        
-        with urllib.request.urlopen(url, timeout=10) as response:
-            data = json.loads(response.read().decode())
-        
-        cargo_query = data.get('cargoquery', [])
-        results = [item.get('title', {}) for item in cargo_query]
-        
-        return results
-    except Exception as e:
-        return [{"error": f"Failed to get tool: {str(e)}"}]
 
-@mcp.tool()
-def list_tool_resources(tool: str) -> List[Dict[str, any]]:
-    """List all resources for a specific tool.
+        tool_url = f"{WIKI_API_URL}?{urllib.parse.urlencode(tool_params)}"
 
-    Args:
-        tool: Canonical tool ID (e.g., "Tool:SuicideHotline")
+        with urllib.request.urlopen(tool_url, timeout=10) as response:
+            tool_data = json.loads(response.read().decode())
 
-    Returns:
-        List of resources with resource page, tool, country, region, data fields, additional info, and last verified timestamp, ordered by country
-    """
-    try:
-        # Ensure proper page name format
-        if not tool.startswith('Tool:'):
-            tool = f'Tool:{tool}'
-        
-        fields = "_pageName=resource,tool,country,region,data_field1_name,data_field1_value,data_field2_name,data_field2_value,data_field3_name,data_field3_value,data_field4_name,data_field4_value,data_field5_name,data_field5_value,additional_info,last_verified"
-        where = f"tool='{tool}'"
-        order_by = "country"
-        
-        params = {
-            'action': 'cargoquery',
-            'format': 'json',
-            'tables': 'ToolResources',
-            'fields': fields,
-            'where': where,
-            'order_by': order_by,
-            'limit': '500'
+        cargo_query = tool_data.get('cargoquery', [])
+        if not cargo_query:
+            return {"error": f"Tool '{tool}' not found"}
+
+        tool_info = cargo_query[0].get('title', {})
+        has_resources = tool_info.get('has resources', '0') == '1'
+
+        result = {
+            'tool': tool_info.get('Page', ''),
+            'description': tool_info.get('description', ''),
+            'community': tool_info.get('community', ''),
+            'has_resources': has_resources
         }
-        
-        url = f"{WIKI_API_URL}?{urllib.parse.urlencode(params)}"
-        
-        with urllib.request.urlopen(url, timeout=10) as response:
-            data = json.loads(response.read().decode())
-        
-        cargo_query = data.get('cargoquery', [])
-        results = [item.get('title', {}) for item in cargo_query]
-        
-        return results
+
+        if has_resources:
+            # Tool has location-specific resources, query ToolResources table
+            if not country:
+                return {
+                    **result,
+                    'error': 'This tool requires a country parameter to fetch location-specific resources',
+                    'usage': f'use_tool(tool="{tool}", country="Singapore") or use_tool(tool="{tool}", country="Switzerland")'
+                }
+
+            resource_fields = "tool,country,region,data_field1_name,data_field1_value,data_field2_name,data_field2_value,data_field3_name,data_field3_value,data_field4_name,data_field4_value,data_field5_name,data_field5_value,additional_info,last_verified"
+
+            # Build WHERE clause for resources
+            where_clauses = [f"tool='{tool}'", f"country='{country}'"]
+            if region:
+                where_clauses.append(f"region='{region}'")
+
+            resource_where = ' AND '.join(where_clauses)
+
+            resource_params = {
+                'action': 'cargoquery',
+                'format': 'json',
+                'tables': 'ToolResources',
+                'fields': resource_fields,
+                'where': resource_where,
+                'limit': '500'
+            }
+
+            resource_url = f"{WIKI_API_URL}?{urllib.parse.urlencode(resource_params)}"
+
+            with urllib.request.urlopen(resource_url, timeout=10) as response:
+                resource_data = json.loads(response.read().decode())
+
+            resources = [item.get('title', {}) for item in resource_data.get('cargoquery', [])]
+            result['resources'] = resources
+
+        else:
+            # Tool doesn't have resources, fetch the page content
+            parse_params = {
+                'action': 'parse',
+                'format': 'json',
+                'page': tool,
+                'prop': 'text'
+            }
+
+            parse_url = f"{WIKI_API_URL}?{urllib.parse.urlencode(parse_params)}"
+
+            with urllib.request.urlopen(parse_url, timeout=10) as response:
+                parse_data = json.loads(response.read().decode())
+
+            parse_result = parse_data.get('parse', {})
+            result['content'] = parse_result.get('text', {}).get('*', '')
+            result['page_url'] = f"{WIKI_BASE_URL}/wiki/{tool.replace(':', '/')}"
+
+        return result
+
     except Exception as e:
-        return [{"error": f"Failed to list tool resources: {str(e)}"}]
-
-@mcp.tool()
-def list_tool_resources_by_location(tool: str, country: str, region: Optional[str] = None) -> List[Dict[str, any]]:
-    """List resources for a specific tool filtered by location.
-
-    Args:
-        tool: Canonical tool ID (e.g., "Tool:SuicideHotline")
-        country: Country name (required, e.g., "Singapore", "Switzerland")
-        region: Optional region filter (e.g., "ZH" for Zurich)
-
-    Returns:
-        List of resources with resource page, tool, country, region, data fields, additional info, and last verified timestamp
-    """
-    try:
-        # Ensure proper page name format
-        if not tool.startswith('Tool:'):
-            tool = f'Tool:{tool}'
-        
-        fields = "_pageName=resource,tool,country,region,data_field1_name,data_field1_value,data_field2_name,data_field2_value,data_field3_name,data_field3_value,data_field4_name,data_field4_value,data_field5_name,data_field5_value,additional_info,last_verified"
-        
-        # Build WHERE clause
-        where_clauses = [f"tool='{tool}'", f"country='{country}'"]
-        if region:
-            where_clauses.append(f"region='{region}'")
-        
-        where = ' AND '.join(where_clauses)
-        
-        params = {
-            'action': 'cargoquery',
-            'format': 'json',
-            'tables': 'ToolResources',
-            'fields': fields,
-            'where': where,
-            'limit': '500'
-        }
-        
-        url = f"{WIKI_API_URL}?{urllib.parse.urlencode(params)}"
-        
-        with urllib.request.urlopen(url, timeout=10) as response:
-            data = json.loads(response.read().decode())
-        
-        cargo_query = data.get('cargoquery', [])
-        results = [item.get('title', {}) for item in cargo_query]
-        
-        return results
-    except Exception as e:
-        return [{"error": f"Failed to list tool resources by location: {str(e)}"}]
+        return {"error": f"Failed to use tool: {str(e)}"}}
 
 # ============================================================================
 # SWISS TRANSIT TOOLS (Your existing tools)
