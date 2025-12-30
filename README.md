@@ -21,15 +21,33 @@ MCP Server (this repository)
     └─→ External APIs (real-time data)
 ```
 
+### Understanding Wiki Tools vs MCP Functions
+
+**This repository contains MCP functions** - Python code that AI assistants can call. These functions access two types of data:
+
+**1. Wiki-Based Functions** (access community-maintained data)
+- Read from [wiki.publicai.co](https://wiki.publicai.co) where community members maintain **Wiki Tools**
+- Wiki Tools = structured data stored using MediaWiki Cargo (database-like tables)
+- Examples: Crisis hotlines, BTO launches, community events
+- **To contribute data**: Edit Wiki Tools on the wiki (no coding required)
+- **To add new tool types**: Create new Wiki Tool with Cargo schema on wiki + add MCP function here
+
+**2. API-Based Functions** (real-time integrations)
+- Call external APIs for live data (transit, parking, maps)
+- Examples: Swiss transport, Singapore carpark availability
+- **To contribute**: Add Python code to this repository
+
+### Example Flow
+
 1. **User asks AI a question**: "What's the suicide hotline in Singapore?"
-2. **AI calls MCP tool**: `use_tool(tool="SuicideHotline", country="Singapore")`
-3. **Server fetches data**: Queries wiki.publicai.co or external APIs
-4. **AI gets current info**: Returns verified, up-to-date resources
+2. **AI calls MCP function**: `use_tool(tool="SuicideHotline", country="Singapore")`
+3. **MCP function queries wiki**: Reads from SuicideHotline Wiki Tool's Cargo database
+4. **AI gets current info**: Returns verified, community-maintained resources
 
-## Available Tools
+## Available MCP Functions
 
-### Wiki Tools
-Tools that read community-maintained data from wiki.publicai.co:
+### Wiki-Based Functions
+Functions that read community-maintained Wiki Tools from wiki.publicai.co:
 
 #### `list_tools_by_community(community: str)`
 List all tools available for a specific community.
@@ -55,7 +73,7 @@ use_tool(tool="UpcomingBTO")
 # Returns: Full page content about BTO launches
 ```
 
-### Swiss Tools
+### API-Based Functions: Swiss Transport
 Real-time Swiss public transport information via [transport.opendata.ch](https://transport.opendata.ch):
 
 #### `search_swiss_stations(query: str, limit: int = 10)`
@@ -79,7 +97,7 @@ Plan journeys with real-time connections.
 plan_swiss_journey(from_station="Zürich HB", to_station="Geneva")
 ```
 
-### Singapore Tools
+### API-Based Functions: Singapore
 Location services for Singapore:
 
 #### `get_singapore_carpark_availability()`
@@ -89,7 +107,7 @@ Get real-time carpark availability data.
 get_singapore_carpark_availability()
 ```
 
-### OpenStreetMap Tools
+### API-Based Functions: OpenStreetMap
 
 #### `search_osm_nominatim(query: str, limit: int = 10)`
 Search for locations worldwide using OpenStreetMap.
@@ -150,7 +168,7 @@ Currently, no environment variables are required. Future API integrations may re
 Public AI has two contribution pathways:
 
 ### 1. Contribute Data (No Coding Required)
-Add or update information on [wiki.publicai.co](https://wiki.publicai.co):
+Add or update **Wiki Tools** on [wiki.publicai.co](https://wiki.publicai.co):
 - Crisis hotline numbers for your country
 - BTO launch information
 - Community events and resources
@@ -158,64 +176,77 @@ Add or update information on [wiki.publicai.co](https://wiki.publicai.co):
 
 **See:** [Wiki Contribution Guide](https://wiki.publicai.co)
 
-### 2. Add MCP Tools (Python Required)
-Integrate new APIs or build tools that require real-time data:
+### 2. Add MCP Functions (Python Required)
+Integrate new APIs or build functions that require real-time data:
 
 1. Fork this repository
-2. Add your `@mcp.tool()` function to `main.py`
+2. Add your Python file to the `functions/` folder
 3. Test locally
 4. Submit a Pull Request
 
 **See:** [CONTRIBUTING.md](CONTRIBUTING.md) for detailed guidelines
 
-#### Example: Adding a New Tool
+#### Example: Adding a New Function
+
+Create a new file in `functions/weather.py`:
 
 ```python
-@mcp.tool()
-def get_weather_alerts(country: str, region: Optional[str] = None) -> List[Dict[str, any]]:
-    """Get severe weather alerts for a location.
+from fastmcp import FastMCP
+import json
+import urllib.request
+from typing import List, Dict, Optional, Any
 
-    Args:
-        country: Country name (e.g., "Singapore", "Switzerland")
-        region: Optional region/state
+def register_weather_functions(mcp: FastMCP):
+    """Register weather-related MCP functions"""
 
-    Returns:
-        List of active weather alerts
-    """
-    try:
-        # Your implementation here
-        url = f"https://api.weather.service/alerts?country={country}"
-        with urllib.request.urlopen(url, timeout=10) as response:
-            data = json.loads(response.read().decode())
+    @mcp.tool()
+    def get_weather_alerts(country: str, region: Optional[str] = None) -> List[Dict[str, Any]]:
+        """Get severe weather alerts for a location.
 
-        return data.get('alerts', [])
-    except Exception as e:
-        return [{"error": f"Failed to get alerts: {str(e)}"}]
+        Args:
+            country: Country name (e.g., "Singapore", "Switzerland")
+            region: Optional region/state
+
+        Returns:
+            List of active weather alerts
+        """
+        try:
+            # Your implementation here
+            url = f"https://api.weather.service/alerts?country={country}"
+            with urllib.request.urlopen(url, timeout=10) as response:
+                data = json.loads(response.read().decode())
+
+            return data.get('alerts', [])
+        except Exception as e:
+            return [{"error": f"Failed to get alerts: {str(e)}"}]
 ```
 
-#### Guidelines for MCP Tools
+The function will be automatically loaded by `main.py`.
+
+#### Guidelines for MCP Functions
 
 - ✅ Handle errors gracefully
 - ✅ Set appropriate timeouts (10s default)
 - ✅ Return consistent data structures
 - ✅ Document parameters clearly
 - ✅ Use environment variables for API keys
+- ✅ Create one file per API/service for easy maintenance
 
 ## Architecture
 
-### Wiki Tools Architecture
+### Wiki-Based Functions Architecture
 ```
-1. Community edits wiki.publicai.co
+1. Community edits Wiki Tools on wiki.publicai.co
 2. MediaWiki stores data in Cargo tables
-3. MCP server queries Cargo API
-4. AI assistant gets fresh data
+3. MCP functions query Cargo API
+4. AI assistant gets fresh, community-maintained data
 ```
 
-### MCP Tools Architecture
+### API-Based Functions Architecture
 ```
-1. AI assistant calls MCP tool
-2. Server makes API request to external service
-3. Server processes and formats response
+1. AI assistant calls MCP function
+2. Function makes API request to external service
+3. Function processes and formats response
 4. AI assistant gets real-time data
 ```
 

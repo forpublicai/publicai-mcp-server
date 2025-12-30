@@ -1,11 +1,11 @@
-# Contributing to Public AI Wiki
+# Contributing to Public AI
 
-Public AI has two types of tools, and your contribution path depends on what you want to add or improve.
+Public AI has two types of contributions: **Wiki Tools** (data on the wiki) and **MCP Functions** (Python code). Your contribution path depends on what you want to add or improve.
 
-## Understanding Tool Types
+## Understanding Wiki Tools vs MCP Functions
 
 ### Wiki Tools
-**What they are:** Tools where the data and content live in this wiki. The MCP server simply reads from the wiki and serves it to AI assistants.
+**What they are:** Structured data stored in the wiki using MediaWiki Cargo. MCP functions read from the wiki and serve the data to AI assistants.
 
 **Examples:**
 - **SuicideHotline**: Hotline numbers stored in ToolResources table
@@ -21,12 +21,12 @@ Public AI has two types of tools, and your contribution path depends on what you
 
 ---
 
-### MCP Tools
-**What they are:** Tools implemented as Python code in the MCP server repository. These typically integrate with external APIs or perform complex data processing.
+### MCP Functions
+**What they are:** Python code in the MCP server repository. These typically integrate with external APIs or perform complex data processing.
 
 **Examples:**
-- **Swiss Transit**: Calls Switzerland's public transport API
-- **OSM Nominatim**: Searches OpenStreetMap for locations
+- **Swiss Transit Functions**: Call Switzerland's public transport API
+- **Singapore Functions**: Real-time carpark availability
 
 **Who can contribute:** Developers with Python experience
 
@@ -34,7 +34,7 @@ Public AI has two types of tools, and your contribution path depends on what you
 - API integrations (e.g., weather APIs, transit APIs)
 - Complex data transformations
 - Real-time data that can't be stored in the wiki
-- Tools requiring authentication or rate limiting
+- Functions requiring authentication or rate limiting
 
 ---
 
@@ -122,77 +122,70 @@ Then add resources:
 
 ---
 
-### 3️⃣ Add a New MCP Tool
-**Implement a tool with Python code that integrates with external APIs**
+### 3️⃣ Add a New MCP Function
+**Implement a function with Python code that integrates with external APIs**
 
 **Difficulty:** Advanced (requires Python/coding)
 
 **When to use this:**
 - You need to call external APIs
-- The tool requires real-time data (weather, transit, stock prices)
+- The function requires real-time data (weather, transit, stock prices)
 - Complex logic or data transformation is needed
 - The data can't be reasonably stored in the wiki
 
 **Steps:**
 1. Fork the [pai-mcp-server repository](https://github.com/yourusername/pai-mcp-server)
-2. Add your tool function to `main.py`:
+2. Create a new file in the `functions/` folder (e.g., `functions/weather.py`)
+3. Implement your function module:
    ```python
-   @mcp.tool()
-   def your_new_tool(param1: str, param2: Optional[str] = None) -> Dict[str, any]:
-       """Tool description.
+   from fastmcp import FastMCP
+   import json
+   import urllib.request
+   from typing import List, Dict, Optional, Any
 
-       Args:
-           param1: Description of parameter
-           param2: Optional parameter description
+   def register_weather_functions(mcp: FastMCP):
+       """Register weather-related MCP functions"""
 
-       Returns:
-           Dictionary with results
-       """
-       try:
-           # Your implementation here
-           # Call external APIs, process data, etc.
-           return {"result": "data"}
-       except Exception as e:
-           return {"error": f"Failed: {str(e)}"}
+       @mcp.tool()
+       def get_weather_alerts(country: str, region: Optional[str] = None) -> List[Dict[str, Any]]:
+           """Get severe weather alerts for a location.
+
+           Args:
+               country: Country name (e.g., "Singapore", "Switzerland")
+               region: Optional region/state
+
+           Returns:
+               List of active weather alerts
+           """
+           try:
+               # Call weather API
+               url = f"https://api.weather.gov/alerts?country={country}"
+               with urllib.request.urlopen(url, timeout=10) as response:
+                   data = json.loads(response.read().decode())
+
+               alerts = []
+               for alert in data.get('features', []):
+                   alerts.append({
+                       'event': alert['properties']['event'],
+                       'severity': alert['properties']['severity'],
+                       'description': alert['properties']['description']
+                   })
+
+               return alerts
+           except Exception as e:
+               return [{"error": f"Failed to get alerts: {str(e)}"}]
    ```
-3. Test locally: `python main.py`
-4. Submit a Pull Request with:
-   - Clear description of what the tool does
+4. Update `main.py` to import and register your functions:
+   ```python
+   from functions.weather import register_weather_functions
+   register_weather_functions(mcp)
+   ```
+5. Test locally: `uv run main.py`
+6. Submit a Pull Request with:
+   - Clear description of what the function does
    - Why it's valuable for AI assistants
    - Any API keys or credentials needed (use environment variables)
    - Example usage
-
-**Example: Weather API Integration**
-```python
-@mcp.tool()
-def get_weather_alerts(country: str, region: Optional[str] = None) -> List[Dict[str, any]]:
-    """Get severe weather alerts for a location.
-
-    Args:
-        country: Country name (e.g., "Singapore", "Switzerland")
-        region: Optional region/state
-
-    Returns:
-        List of active weather alerts
-    """
-    try:
-        # Call weather API
-        url = f"https://api.weather.gov/alerts?country={country}"
-        with urllib.request.urlopen(url, timeout=10) as response:
-            data = json.loads(response.read().decode())
-
-        alerts = []
-        for alert in data.get('features', []):
-            alerts.append({
-                'event': alert['properties']['event'],
-                'severity': alert['properties']['severity'],
-                'description': alert['properties']['description']
-            })
-
-        return alerts
-    except Exception as e:
-        return [{"error": f"Failed to get alerts: {str(e)}"}]
-```
 
 ---
 
@@ -205,7 +198,7 @@ def get_weather_alerts(country: str, region: Optional[str] = None) -> List[Dict[
 → Use Pathway #2 (Add a New Wiki Tool)
 
 **I want to integrate with an external API or build something requiring code**
-→ Use Pathway #3 (Add a New MCP Tool)
+→ Use Pathway #3 (Add a New MCP Function)
 
 ---
 
@@ -224,27 +217,30 @@ def get_weather_alerts(country: str, region: Optional[str] = None) -> List[Dict[
 - ✅ Localize information appropriately
 - ✅ Keep `additional_info` concise but helpful
 
-### For MCP Tools:
+### For MCP Functions:
 - ✅ Handle errors gracefully
-- ✅ Set appropriate timeouts for API calls
+- ✅ Set appropriate timeouts for API calls (10s default)
 - ✅ Return consistent data structures
 - ✅ Document required parameters clearly
 - ✅ Don't hardcode secrets (use environment variables)
+- ✅ Create one file per API/service in the `functions/` folder
+- ✅ Use the `register_*_functions(mcp)` pattern
 
 ---
 
 ## Need Help?
 
-- **Wiki editing questions**: Check [Template:Tool](Template:Tool) and [Template:ToolResource](Template:ToolResource)
-- **MCP tool questions**: See the [FastMCP documentation](https://github.com/jlowin/fastmcp)
+- **Wiki editing questions**: Check the wiki templates and documentation
+- **MCP function questions**: See the [FastMCP documentation](https://github.com/jlowin/fastmcp)
 - **General questions**: Open an issue in the repository
 
 ## Examples to Learn From
 
 ### Good Wiki Tools:
-- [Tool:SuicideHotline](Tool:SuicideHotline) - Clean resource structure
-- [Tool:UpcomingBTO](Tool:UpcomingBTO) - Rich page content
+- **SuicideHotline**: Clean resource structure with location-specific data
+- **UpcomingBTO**: Rich page content with detailed information
 
-### Good MCP Tools:
-- See `search_swiss_stations()` in main.py - Simple API integration
-- See `plan_swiss_journey()` in main.py - Complex API with parameters
+### Good MCP Functions:
+- See `functions/swiss_transport.py` - Simple API integration pattern
+- See `functions/wiki.py` - Complex wiki queries with error handling
+- See `functions/singapore.py` - Real-time data API integration
